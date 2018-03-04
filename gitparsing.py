@@ -117,13 +117,16 @@ class GitParser:
             if not ruleset.is_entry_acceptable(entry):
                 return False
 
-        entry_datetime = datetime.strptime(entry['date'], "%Y-%m-%d %H:%M:%S %z")
+        try:
+            entry_datetime = datetime.strptime(entry['date'], "%Y-%m-%d %H:%M:%S %z")
 
-        # Sometimes git gives us entries from the wrong date range
-        if start_datetime and entry_datetime.date() < start_datetime.date():
-            return False
+            # Sometimes git gives us entries from the wrong date range
+            if start_datetime and entry_datetime.date() < start_datetime.date():
+                return False
 
-        if end_datetime and entry_datetime.date() > end_datetime.date():
+            if end_datetime and entry_datetime.date() > end_datetime.date():
+                return False
+        except KeyError:
             return False
 
         return True
