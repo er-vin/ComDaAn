@@ -31,7 +31,8 @@ class GitParser:
         self.__paths = []
         self.__rulesets = []
 
-        for file in glob.glob("./rulesets/*.py"):
+        rulesets_dir = os.path.dirname(__file__) + "/rulesets"
+        for file in glob.glob(rulesets_dir + "/*.py"):
             module_name = os.path.splitext(os.path.basename(file))[0]
             module = importlib.import_module("rulesets.%s" % (module_name))
             self.__rulesets.append(module)
