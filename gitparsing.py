@@ -26,6 +26,7 @@ GIT_COMMIT_FIELDS = ['id', 'author_name', 'author_email', 'date', 'message', 'fi
 GIT_LOG_FORMAT = ["%H", "%an", "%ae", "%ad", "%s"]
 GIT_LOG_FORMAT = "%x1e" + "%x1f".join(GIT_LOG_FORMAT) + "%x1f"
 
+
 class GitParser:
     def __init__(self):
         self.__paths = []
@@ -66,15 +67,17 @@ class GitParser:
                 for subpath in subpaths:
                     self.add_repositories(subpath)
 
-    def get_log(self, start_date = None, end_date = None):
+    def get_log(self, start_date=None, end_date=None):
         entries = []
         for path in self.__paths:
             entries.extend(self.__create_log_entries(path, start_date, end_date))
 
-        return pandas.DataFrame(entries, columns = GIT_COMMIT_FIELDS + ['repository'])
+        return pandas.DataFrame(entries, columns=GIT_COMMIT_FIELDS + ['repository'])
 
-    def __create_log_entries(self, path, start_date = None, end_date = None):
-        command = "git --git-dir %s/.git log --date-order --reverse --all --date=iso --name-only --pretty=format:%s" % (path, GIT_LOG_FORMAT)
+    def __create_log_entries(self, path, start_date=None, end_date=None):
+        command = "git --git-dir %s/.git log" % (path)
+        command += " --date-order --reverse --all --date=iso --name-only"
+        command += " --pretty=format:%s" % (GIT_LOG_FORMAT)
 
         if start_date:
             command += " --since %s" % (start_date)
@@ -104,14 +107,16 @@ class GitParser:
         return log
 
     def __run_command(self, command):
-        process = subprocess.Popen(command.split(" "), stdout = subprocess.PIPE, stderr = subprocess.STDOUT, universal_newlines = False)
+        process = subprocess.Popen(command.split(" "),
+                                   stdout=subprocess.PIPE,
+                                   stderr=subprocess.STDOUT,
+                                   universal_newlines=False)
         (log, err) = process.communicate()
 
         if process.returncode != 0:
             raise OSError(log)
 
-        return log.decode("utf-8", errors = "replace")
-
+        return log.decode("utf-8", errors="replace")
 
     def __is_entry_acceptable(self, entry, start_datetime, end_datetime):
         for ruleset in self.__rulesets:
@@ -149,4 +154,3 @@ class GitParser:
             ruleset.postprocess_entry(entry)
 
         return entry
-
