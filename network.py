@@ -87,7 +87,11 @@ if __name__ == "__main__":
 
     p.add_tools(HoverTool(tooltips = [("Name", "@index"), ("Centrality", "@centrality")]), TapTool(), BoxSelectTool())
 
-    renderer = from_networkx(graph, nx.kamada_kawai_layout, center = (0,0))
+    p.xaxis.visible = False
+    p.yaxis.visible = False
+    p.grid.visible = False
+
+    renderer = from_networkx(graph, nx.kamada_kawai_layout)
 
     source = ColumnDataSource(nodes)
     renderer.node_renderer.data_source.data = source.data
