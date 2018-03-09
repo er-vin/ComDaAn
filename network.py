@@ -23,10 +23,11 @@ import networkx as nx
 
 from gitparsing import GitParser
 from bokeh.plotting import figure, show
-from bokeh.models.graphs import from_networkx, NodesAndLinkedEdges, EdgesAndLinkedNodes
-from bokeh.models import Plot, Range1d, MultiLine, Circle, HoverTool, TapTool, BoxSelectTool
-from bokeh.palettes import Spectral4
-from bokeh.io import output_notebook, output_file
+from bokeh.models.graphs import from_networkx, NodesAndLinkedEdges
+from bokeh.models import MultiLine, Circle, HoverTool, TapTool, BoxSelectTool
+from bokeh.models.sources import ColumnDataSource
+from bokeh.palettes import Spectral4, Magma11
+from bokeh.io import output_file
 from itertools import combinations
 from functools import reduce
 
@@ -72,6 +73,11 @@ if __name__ == "__main__":
 
     graph.remove_edges_from(no_edges)
 
+    palette = list(reversed(Magma11))
+    degrees = nx.degree_centrality(graph)
+    nodes = pd.DataFrame.from_records([degrees]).transpose()
+    nodes.columns = ["centrality"]
+    nodes["color"] = nodes["centrality"].apply(lambda x: palette[round(x * (len(palette) - 1))])
 
     output_file(output_filename)
     p = figure(x_range = (-1.1, 1.1), y_range = (-1.1, 1.1),
@@ -79,11 +85,14 @@ if __name__ == "__main__":
                active_scroll = "wheel_zoom",
                title = args.title)
 
-    p.add_tools(HoverTool(tooltips = [("Name", "@index")]), TapTool(), BoxSelectTool())
+    p.add_tools(HoverTool(tooltips = [("Name", "@index"), ("Centrality", "@centrality")]), TapTool(), BoxSelectTool())
 
-    renderer = from_networkx(graph, nx.spring_layout, center = (0,0))
+    renderer = from_networkx(graph, nx.kamada_kawai_layout, center = (0,0))
 
-    renderer.node_renderer.glyph = Circle(size = 15, fill_color = Spectral4[0])
+    source = ColumnDataSource(nodes)
+    renderer.node_renderer.data_source.data = source.data
+    renderer.node_renderer.data_source.column_names = source.column_names
+    renderer.node_renderer.glyph = Circle(size = 15, fill_color = "color")
     renderer.node_renderer.selection_glyph = Circle(size = 15, fill_color = Spectral4[2])
     renderer.node_renderer.hover_glyph = Circle(size = 15, fill_color = Spectral4[1])
 
@@ -96,4 +105,3 @@ if __name__ == "__main__":
 
     p.renderers.append(renderer)
     show(p)
-
