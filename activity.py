@@ -21,7 +21,7 @@ from argparse import ArgumentParser
 from datetime import datetime, timedelta
 from gitparsing import GitParser
 from bokeh.plotting import figure, show
-from bokeh.models import HoverTool
+from bokeh.models import HoverTool, LinearColorMapper
 from bokeh.models.sources import ColumnDataSource
 from bokeh.palettes import Magma256
 from bokeh.io import output_file
@@ -74,9 +74,12 @@ if __name__ == "__main__":
     weekly_activity['week_name'] = weekly_activity['date'].apply(lambda x: "%s-%s" % x.isocalendar()[:2])
 
     palette = list(reversed(Magma256))
+    color_mapper = LinearColorMapper(palette=palette,
+                                     low=weekly_activity['count'].min(),
+                                     high=weekly_activity['count'].max())
     if args.palette == "blue4":
         palette = ["#EAF5F9", "#D6EBF2", "#C1E2EC", "#ADD8E6"]
-    weekly_activity['color'] = weekly_activity['count'].apply(lambda x: palette[min(len(palette) - 1, x)])
+        color_mapper = LinearColorMapper(palette=palette, low=0, high=4)
 
     output_file(output_filename)
     p = figure(x_axis_type="datetime", y_range=authors,
@@ -88,9 +91,8 @@ if __name__ == "__main__":
                                     ("Count", "@count")]))
     p.rect("date", "author_name",
            source=ColumnDataSource(weekly_activity),
-           color="lightblue",
-           fill_color="color",
-           line_color="color",
+           fill_color={'field': 'count', 'transform': color_mapper},
+           line_color={'field': 'count', 'transform': color_mapper},
            width=1000 * 60 * 60 * 24 * 7,
            height=1)
     show(p)

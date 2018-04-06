@@ -24,7 +24,7 @@ from argparse import ArgumentParser
 from gitparsing import GitParser
 from bokeh.plotting import figure, show
 from bokeh.models.graphs import from_networkx, NodesAndLinkedEdges
-from bokeh.models import MultiLine, Circle, HoverTool, TapTool, BoxSelectTool
+from bokeh.models import MultiLine, Circle, HoverTool, TapTool, BoxSelectTool, LinearColorMapper
 from bokeh.models.sources import ColumnDataSource
 from bokeh.palettes import Spectral4, Magma11
 from bokeh.io import output_file
@@ -80,11 +80,14 @@ if __name__ == "__main__":
 
     graph.remove_edges_from(no_edges)
 
-    palette = list(reversed(Magma11))
     degrees = nx.degree_centrality(graph)
     nodes = pd.DataFrame.from_records([degrees]).transpose()
     nodes.columns = ["centrality"]
-    nodes["color"] = nodes["centrality"].apply(lambda x: palette[round(x * (len(palette) - 1))])
+
+    palette = list(reversed(Magma11))
+    color_mapper = LinearColorMapper(palette=palette,
+                                     low=nodes['centrality'].min(),
+                                     high=nodes['centrality'].max())
 
     output_file(output_filename)
     p = figure(x_range=(-1.1, 1.1), y_range=(-1.1, 1.1),
@@ -103,7 +106,7 @@ if __name__ == "__main__":
     source = ColumnDataSource(nodes)
     renderer.node_renderer.data_source.data = source.data
     renderer.node_renderer.data_source.column_names = source.column_names
-    renderer.node_renderer.glyph = Circle(size=15, fill_color="color")
+    renderer.node_renderer.glyph = Circle(size=15, fill_color={'field': 'centrality', 'transform': color_mapper})
     renderer.node_renderer.selection_glyph = Circle(size=15, fill_color=Spectral4[2])
     renderer.node_renderer.hover_glyph = Circle(size=15, fill_color=Spectral4[1])
 
