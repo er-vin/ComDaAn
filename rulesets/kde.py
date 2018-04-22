@@ -15,10 +15,10 @@
 #
 
 def is_entry_acceptable(entry):
-    try:
-        if entry['author_email'] == "scripty@kde.org":
-            return False
-    except:
+    if "author_email" not in entry:
+        return False
+
+    if entry['author_email'] == "scripty@kde.org":
         return False
 
     return True
