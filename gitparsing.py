@@ -16,6 +16,8 @@
 #
 
 from datetime import datetime
+from pytz import utc
+
 import os
 import pandas
 import subprocess
@@ -125,6 +127,7 @@ class GitParser:
 
         try:
             entry_datetime = datetime.strptime(entry['date'], "%Y-%m-%d %H:%M:%S %z")
+            entry_datetime = entry_datetime.astimezone(utc)
 
             # Sometimes git gives us entries from the wrong date range
             if start_datetime and entry_datetime.date() < start_datetime.date():
@@ -149,6 +152,7 @@ class GitParser:
         entry['repository'] = repository
         entry['id'] = "%s:%s" % (repository, entry['id'])
         entry['date'] = datetime.strptime(entry['date'], "%Y-%m-%d %H:%M:%S %z")
+        entry['date'] = entry['date'].astimezone(utc)
 
         for ruleset in self.__rulesets:
             ruleset.postprocess_entry(entry)
