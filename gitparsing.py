@@ -46,7 +46,7 @@ class GitParser:
 
         abs_path = os.path.abspath(os.path.expanduser(path))
         git_path = os.path.join(abs_path, ".git")
-        if not os.path.isdir(git_path):
+        if not os.path.exists(git_path):
             raise ValueError("Git repository expected, no %s found" % git_path)
 
         self.__paths.append(abs_path)
@@ -62,7 +62,7 @@ class GitParser:
             abs_path = os.path.abspath(os.path.expanduser(path))
             git_path = os.path.join(abs_path, ".git")
 
-            if os.path.isdir(git_path):
+            if os.path.exists(git_path):
                 self.add_repository(abs_path)
             elif os.path.isdir(abs_path):
                 subpaths = list(map(lambda x: os.path.join(abs_path, x), os.listdir(abs_path)))
