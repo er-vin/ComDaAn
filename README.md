@@ -12,6 +12,7 @@ The scripts in this repository depend on the following python modules:
  * bokeh: https://bokeh.pydata.org
 
 They are commonly available via pip or your OS packaging system.
+You can run `pip install -r requirements.txt` to install them (consider using virtualenv).
 
 Running
 -------
