@@ -44,17 +44,9 @@ if __name__ == "__main__":
                             help="Output file (default is 'result.html')")
     args = arg_parser.parse_args()
 
-    start_date = None
-    if args.start:
-        start_date = args.start
-
-    end_date = None
-    if args.end:
-        end_date = args.end
-
-    output_filename = "result.html"
-    if args.output:
-        output_filename = args.output
+    start_date = args.start
+    end_date = args.end
+    output_filename = args.output or "result.html"
 
     parser = GitParser()
     parser.add_repositories(args.paths)
