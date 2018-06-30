@@ -33,13 +33,8 @@ from functools import reduce
 
 if __name__ == "__main__":
     # Parse the args before all else
-    arg_parser = ArgumentParser(description="A tool for showing who has worked with whom within repositories")
-    arg_parser.add_argument("paths", metavar="path", nargs="+",
-                            help="Path of a git repository to process or of a directory containing git repositories")
-    arg_parser.add_argument("-f", "--start",
-                            help="Start date")
-    arg_parser.add_argument("-u", "--end",
-                            help="End date")
+    arg_parser = ArgumentParser(description="A tool for showing who has worked with whom within repositories",
+                                parents=[GitParser.get_argument_parser()])
     arg_parser.add_argument("-t", "--title",
                             help="Title")
     arg_parser.add_argument("-o", "--output",

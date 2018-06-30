@@ -58,16 +58,11 @@ def network_from_dataframe(dataframe):
 
 if __name__ == "__main__":
     # Parse the args before all else
-    arg_parser = ArgumentParser(description="A tool for exploring centrality and activity of a contributor over time")
-    arg_parser.add_argument("paths", metavar="path", nargs="+",
-                            help="Path of a git repository to process or of a directory containing git repositories")
+    arg_parser = ArgumentParser(description="A tool for exploring centrality and activity of a contributor over time",
+                                parents=[GitParser.get_argument_parser()])
     arg_parser.add_argument("-n", "--name",
                             help="Name of the contributor to explore,"
                                  + " if no name is provided a list of names will be proposed")
-    arg_parser.add_argument("-f", "--start",
-                            help="Start date")
-    arg_parser.add_argument("-u", "--end",
-                            help="End date")
     arg_parser.add_argument("-o", "--output",
                             help="Output file (default is 'result.html')")
     args = arg_parser.parse_args()
