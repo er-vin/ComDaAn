@@ -23,6 +23,7 @@ import pandas
 import subprocess
 import importlib
 import glob
+import argparse
 
 GIT_COMMIT_FIELDS = ['id', 'author_name', 'author_email', 'date', 'message', 'files']
 GIT_LOG_FORMAT = ["%H", "%an", "%ae", "%ad", "%s"]
@@ -39,6 +40,17 @@ class GitParser:
             module_name = os.path.splitext(os.path.basename(file))[0]
             module = importlib.import_module("rulesets.%s" % (module_name))
             self.__rulesets.append(module)
+
+    @staticmethod
+    def get_argument_parser() -> argparse.ArgumentParser:
+        arg_parser = argparse.ArgumentParser(add_help=False)
+        arg_parser.add_argument("paths", metavar="path", nargs="+",
+                                help="Path of a git repository to process or of a directory containing git repositories")
+        arg_parser.add_argument("-f", "--start",
+                                help="Start date")
+        arg_parser.add_argument("-u", "--end",
+                                help="End date")
+        return arg_parser
 
     def add_repository(self, path):
         if not isinstance(path, str):
