@@ -147,6 +147,10 @@ class GitParser:
 
             if end_datetime and entry_datetime.date() > end_datetime.date():
                 return False
+
+            if entry_datetime.date() > datetime.now().date():
+                return False
+
         except KeyError:
             return False
 
