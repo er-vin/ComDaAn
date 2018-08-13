@@ -90,9 +90,7 @@ if __name__ == "__main__":
 
     renderer = from_networkx(graph, nx.kamada_kawai_layout)
 
-    source = ColumnDataSource(nodes)
-    renderer.node_renderer.data_source.data = source.data
-    renderer.node_renderer.data_source.column_names = source.column_names
+    renderer.node_renderer.data_source.add(nodes['centrality'], "centrality")
     renderer.node_renderer.glyph = Circle(size=15, fill_color={'field': 'centrality', 'transform': color_mapper})
     renderer.node_renderer.selection_glyph = Circle(size=15, fill_color=Spectral4[2])
     renderer.node_renderer.hover_glyph = Circle(size=15, fill_color=Spectral4[1])
