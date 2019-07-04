@@ -49,6 +49,7 @@ if __name__ == "__main__":
     log['date'] = log['date'].apply(lambda x: datetime(year=x.year, month=x.month, day=x.day))
 
     start_dates = log.groupby('author_name')['author_name', 'date'].min()
+    start_dates.index.name = 'author_name_index'
     authors = start_dates.sort_values(['date', 'author_name'], ascending=False).loc[:, 'author_name'].tolist()
 
     daily_activity = log.loc[:, ['author_name', 'date', 'id']].groupby(['author_name', 'date']).count()
