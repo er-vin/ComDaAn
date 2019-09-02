@@ -25,7 +25,7 @@ import importlib
 import glob
 import argparse
 
-GIT_COMMIT_FIELDS = ['id', 'author_name', 'author_email', 'date', 'message', 'files']
+GIT_COMMIT_FIELDS = ["id", "author_name", "author_email", "date", "message", "files"]
 GIT_LOG_FORMAT = ["%H", "%an", "%ae", "%ad", "%s"]
 GIT_LOG_FORMAT = "%x1e" + "%x1f".join(GIT_LOG_FORMAT) + "%x1f"
 
@@ -44,12 +44,14 @@ class GitParser:
     @staticmethod
     def get_argument_parser() -> argparse.ArgumentParser:
         arg_parser = argparse.ArgumentParser(add_help=False)
-        arg_parser.add_argument("paths", metavar="path", nargs="+",
-                                help="Path of a git repository to process or of a directory containing git repositories")
-        arg_parser.add_argument("-f", "--start",
-                                help="Start date")
-        arg_parser.add_argument("-u", "--end",
-                                help="End date")
+        arg_parser.add_argument(
+            "paths",
+            metavar="path",
+            nargs="+",
+            help="Path of a git repository to process or of a directory containing git repositories",
+        )
+        arg_parser.add_argument("-f", "--start", help="Start date")
+        arg_parser.add_argument("-u", "--end", help="End date")
         return arg_parser
 
     def add_repository(self, path):
@@ -86,7 +88,7 @@ class GitParser:
         for path in self.__paths:
             entries.extend(self.__create_log_entries(path, start_date, end_date))
 
-        return pandas.DataFrame(entries, columns=GIT_COMMIT_FIELDS + ['repository'])
+        return pandas.DataFrame(entries, columns=GIT_COMMIT_FIELDS + ["repository"])
 
     def __create_log_entries(self, path, start_date=None, end_date=None):
         command = "git --git-dir %s/.git log" % (path)
@@ -121,10 +123,9 @@ class GitParser:
         return log
 
     def __run_command(self, command):
-        process = subprocess.Popen(command.split(" "),
-                                   stdout=subprocess.PIPE,
-                                   stderr=subprocess.STDOUT,
-                                   universal_newlines=False)
+        process = subprocess.Popen(
+            command.split(" "), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=False
+        )
         (log, err) = process.communicate()
 
         if process.returncode != 0:
@@ -138,7 +139,7 @@ class GitParser:
                 return False
 
         try:
-            entry_datetime = datetime.strptime(entry['date'], "%Y-%m-%d %H:%M:%S %z")
+            entry_datetime = datetime.strptime(entry["date"], "%Y-%m-%d %H:%M:%S %z")
             entry_datetime = entry_datetime.astimezone(utc)
 
             # Sometimes git gives us entries from the wrong date range
@@ -158,17 +159,17 @@ class GitParser:
 
     def __postprocess_entry(self, repository, entry):
         try:
-            files = entry['files'].strip("\n")
+            files = entry["files"].strip("\n")
             files = files.split("\n")
             files = list(map(lambda x: "%s:%s" % (repository, x), files))
-            entry['files'] = files
+            entry["files"] = files
         except KeyError:
-            entry['files'] = []
+            entry["files"] = []
 
-        entry['repository'] = repository
-        entry['id'] = "%s:%s" % (repository, entry['id'])
-        entry['date'] = datetime.strptime(entry['date'], "%Y-%m-%d %H:%M:%S %z")
-        entry['date'] = entry['date'].astimezone(utc)
+        entry["repository"] = repository
+        entry["id"] = "%s:%s" % (repository, entry["id"])
+        entry["date"] = datetime.strptime(entry["date"], "%Y-%m-%d %H:%M:%S %z")
+        entry["date"] = entry["date"].astimezone(utc)
 
         for ruleset in self.__rulesets:
             ruleset.postprocess_entry(entry)

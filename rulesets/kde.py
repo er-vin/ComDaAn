@@ -14,23 +14,19 @@
 # limitations under the License.
 #
 
-author_map = {
-    "Montel Laurent": "Laurent Montel",
-    "Ingo Klcker": "Ingo Klöcker",
-    "Aaron J. Seigo": "Aaron Seigo"
-}
+author_map = {"Montel Laurent": "Laurent Montel", "Ingo Klcker": "Ingo Klöcker", "Aaron J. Seigo": "Aaron Seigo"}
 
 
 def is_entry_acceptable(entry):
     if "author_email" not in entry:
         return False
 
-    if entry['author_email'] == "scripty@kde.org":
+    if entry["author_email"] == "scripty@kde.org":
         return False
 
     return True
 
 
 def postprocess_entry(entry):
-    if entry['author_name'] in author_map:
-        entry['author_name'] = author_map[entry['author_name']]
+    if entry["author_name"] in author_map:
+        entry["author_name"] = author_map[entry["author_name"]]

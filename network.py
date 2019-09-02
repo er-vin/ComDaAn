@@ -33,12 +33,12 @@ from functools import reduce
 
 if __name__ == "__main__":
     # Parse the args before all else
-    arg_parser = ArgumentParser(description="A tool for showing who has worked with whom within repositories",
-                                parents=[GitParser.get_argument_parser()])
-    arg_parser.add_argument("-t", "--title",
-                            help="Title")
-    arg_parser.add_argument("-o", "--output",
-                            help="Output file (default is 'result.html')")
+    arg_parser = ArgumentParser(
+        description="A tool for showing who has worked with whom within repositories",
+        parents=[GitParser.get_argument_parser()],
+    )
+    arg_parser.add_argument("-t", "--title", help="Title")
+    arg_parser.add_argument("-o", "--output", help="Output file (default is 'result.html')")
     args = arg_parser.parse_args()
 
     start_date = args.start
@@ -48,20 +48,20 @@ if __name__ == "__main__":
     parser = GitParser()
     parser.add_repositories(args.paths)
     log = parser.get_log(start_date, end_date)
-    log['files'] = log['files'].apply(lambda x: set(x))
+    log["files"] = log["files"].apply(lambda x: set(x))
 
-    groups = log.loc[:, ['author_name', 'files']].groupby('author_name')
+    groups = log.loc[:, ["author_name", "files"]].groupby("author_name")
     files = groups.aggregate(lambda x: reduce(set.union, x))
 
     edges = list(combinations(files.index.tolist(), 2))
-    edge_list = pd.DataFrame(edges, columns=['source', 'target'])
-    edge_list['weight'] = edge_list.apply(lambda x: len(files.loc[x['source']]['files']
-                                                             .intersection(files.loc[x['target']]['files'])),
-                                          axis=1)
+    edge_list = pd.DataFrame(edges, columns=["source", "target"])
+    edge_list["weight"] = edge_list.apply(
+        lambda x: len(files.loc[x["source"]]["files"].intersection(files.loc[x["target"]]["files"])), axis=1
+    )
 
-    graph = nx.convert_matrix.from_pandas_edgelist(edge_list, edge_attr=['weight'])
+    graph = nx.convert_matrix.from_pandas_edgelist(edge_list, edge_attr=["weight"])
     no_edges = []
-    for u, v, weight in graph.edges.data('weight'):
+    for u, v, weight in graph.edges.data("weight"):
         if weight == 0:
             no_edges.append((u, v))
 
@@ -72,15 +72,16 @@ if __name__ == "__main__":
     nodes.columns = ["centrality"]
 
     palette = list(reversed(Magma11))
-    color_mapper = LinearColorMapper(palette=palette,
-                                     low=nodes['centrality'].min(),
-                                     high=nodes['centrality'].max())
+    color_mapper = LinearColorMapper(palette=palette, low=nodes["centrality"].min(), high=nodes["centrality"].max())
 
     output_file(output_filename)
-    p = figure(x_range=(-1.1, 1.1), y_range=(-1.1, 1.1),
-               sizing_mode="stretch_both",
-               active_scroll="wheel_zoom",
-               title=args.title)
+    p = figure(
+        x_range=(-1.1, 1.1),
+        y_range=(-1.1, 1.1),
+        sizing_mode="stretch_both",
+        active_scroll="wheel_zoom",
+        title=args.title,
+    )
 
     p.add_tools(HoverTool(tooltips=[("Name", "@index"), ("Centrality", "@centrality")]), TapTool(), BoxSelectTool())
 
@@ -90,8 +91,8 @@ if __name__ == "__main__":
 
     renderer = from_networkx(graph, nx.kamada_kawai_layout)
 
-    renderer.node_renderer.data_source.add(nodes['centrality'], "centrality")
-    renderer.node_renderer.glyph = Circle(size=15, fill_color={'field': 'centrality', 'transform': color_mapper})
+    renderer.node_renderer.data_source.add(nodes["centrality"], "centrality")
+    renderer.node_renderer.glyph = Circle(size=15, fill_color={"field": "centrality", "transform": color_mapper})
     renderer.node_renderer.selection_glyph = Circle(size=15, fill_color=Spectral4[2])
     renderer.node_renderer.hover_glyph = Circle(size=15, fill_color=Spectral4[1])
 
