@@ -15,6 +15,7 @@
 # limitations under the License.
 #
 
+import sys
 from datetime import datetime
 from pytz import utc
 
@@ -54,11 +55,32 @@ class GitParser:
         arg_parser.add_argument("-u", "--end", help="End date")
         return arg_parser
 
+    def __find_ruleset_in_dir(self, dir_path):
+        files = []
+        for (dirpath, dirnames, filenames) in os.walk(dir_path):
+            files.extend(filenames)
+            break
+        if "comdaan_ruleset.py" in files:
+            spec = importlib.util.spec_from_file_location(os.path.basename(dir_path + "_ruleset"),
+                                                          os.path.join(dir_path, "comdaan_ruleset.py"))
+            module = importlib.util.module_from_spec(spec)
+            try:
+                spec.loader.exec_module(module)
+                self.__rulesets.append(module)
+            except:
+                print("Error: An error occurred with : " + str(module), file=sys.stderr)
+
+    def __find_ruleset(self, path):
+        while os.path.dirname(path) != path:
+            self.__find_ruleset_in_dir(path)
+            path = os.path.abspath(os.path.join(path, os.pardir))
+
     def add_repository(self, path):
         if not isinstance(path, str):
             raise ValueError("String expected")
 
         abs_path = os.path.abspath(os.path.expanduser(path))
+        self.__find_ruleset(abs_path)
         git_path = os.path.join(abs_path, ".git")
         if not os.path.exists(git_path):
             raise ValueError("Git repository expected, no %s found" % git_path)
