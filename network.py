@@ -25,7 +25,6 @@ from gitparsing import GitParser
 from bokeh.plotting import figure, show
 from bokeh.models.graphs import from_networkx, NodesAndLinkedEdges
 from bokeh.models import MultiLine, Circle, HoverTool, TapTool, BoxSelectTool, LinearColorMapper
-from bokeh.models.sources import ColumnDataSource
 from bokeh.palettes import Spectral4, Magma11
 from bokeh.io import output_file
 from itertools import combinations
