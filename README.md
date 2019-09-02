@@ -12,7 +12,11 @@ The scripts in this repository depend on the following python modules:
  * bokeh: https://bokeh.pydata.org
 
 They are commonly available via pip or your OS packaging system.
-You can run `pip install -r requirements.txt` to install them (consider using virtualenv).
+You can run `pipenv install` to install them in a pipenv managed virtualenv.
+
+If you plan to develop on it we advise using `pipenv install -d` to also
+bring `black` which we use for the formatting. Make sure to run it on new
+code before submitting your contribution.
 
 Running
 -------
