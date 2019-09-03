@@ -40,6 +40,11 @@ def network_from_dataframe(dataframe):
     files = groups.aggregate(lambda x: reduce(set.union, x))
 
     edges = list(combinations(files.index.tolist(), 2))
+    if not edges:
+        g = nx.Graph()
+        g.add_nodes_from(files.index)
+        return g
+
     edge_list = pd.DataFrame(edges, columns=["source", "target"])
     edge_list["weight"] = edge_list.apply(
         lambda x: len(files.loc[x["source"]]["files"].intersection(files.loc[x["target"]]["files"])), axis=1
