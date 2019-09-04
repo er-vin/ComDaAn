@@ -35,6 +35,7 @@ class GitParser:
     def __init__(self):
         self.__paths = []
         self.__rulesets = []
+        self.__rulesets_per_repo = {}
 
         rulesets_dir = os.path.dirname(__file__) + "/rulesets"
         for file in glob.glob(rulesets_dir + "/*.py"):
@@ -66,21 +67,25 @@ class GitParser:
             module = importlib.util.module_from_spec(spec)
             try:
                 spec.loader.exec_module(module)
-                self.__rulesets.append(module)
+                return module
             except:
                 print("Error: An error occurred with : " + str(module), file=sys.stderr)
 
-    def __find_ruleset(self, path):
+    def __find_rulesets(self, path):
+        modules = []
         while os.path.dirname(path) != path:
-            self.__find_ruleset_in_dir(path)
+            mod = self.__find_ruleset_in_dir(path)
+            if mod is not None:
+                modules.append(mod)
             path = os.path.abspath(os.path.join(path, os.pardir))
+        return modules
 
     def add_repository(self, path):
         if not isinstance(path, str):
             raise ValueError("String expected")
 
         abs_path = os.path.abspath(os.path.expanduser(path))
-        self.__find_ruleset(abs_path)
+        self.__rulesets_per_repo[abs_path] = self.__find_rulesets(abs_path)
         git_path = os.path.join(abs_path, ".git")
         if not os.path.exists(git_path):
             raise ValueError("Git repository expected, no %s found" % git_path)
@@ -139,8 +144,10 @@ class GitParser:
         if end_date:
             end_datetime = datetime.strptime(end_date, "%Y-%m-%d")
 
-        log = list(filter(lambda x: self.__is_entry_acceptable(x, start_datetime, end_datetime), log))
-        log = list(map(lambda x: self.__postprocess_entry(os.path.basename(path), x), log))
+        rulesets = self.__rulesets_per_repo.get(path, [])
+
+        log = list(filter(lambda x: self.__is_entry_acceptable(x, start_datetime, end_datetime, rulesets), log))
+        log = list(map(lambda x: self.__postprocess_entry(os.path.basename(path), x, rulesets), log))
 
         return log
 
@@ -155,8 +162,12 @@ class GitParser:
 
         return log.decode("utf-8", errors="replace")
 
-    def __is_entry_acceptable(self, entry, start_datetime, end_datetime):
+    def __is_entry_acceptable(self, entry, start_datetime, end_datetime, extra_rulesets):
         for ruleset in self.__rulesets:
+            if not ruleset.is_entry_acceptable(entry):
+                return False
+
+        for ruleset in extra_rulesets:
             if not ruleset.is_entry_acceptable(entry):
                 return False
 
@@ -179,7 +190,7 @@ class GitParser:
 
         return True
 
-    def __postprocess_entry(self, repository, entry):
+    def __postprocess_entry(self, repository, entry, extra_rulesets):
         try:
             files = entry["files"].strip("\n")
             files = files.split("\n")
@@ -194,6 +205,9 @@ class GitParser:
         entry["date"] = entry["date"].astimezone(utc)
 
         for ruleset in self.__rulesets:
+            ruleset.postprocess_entry(entry)
+
+        for ruleset in extra_rulesets:
             ruleset.postprocess_entry(entry)
 
         return entry
