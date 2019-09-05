@@ -17,6 +17,9 @@
 
 import sys
 from datetime import datetime
+
+from multiprocess import Pool
+from functools import reduce
 from pytz import utc
 
 import os
@@ -56,28 +59,28 @@ class GitParser:
         arg_parser.add_argument("-u", "--end", help="End date")
         return arg_parser
 
-    def __find_ruleset_in_dir(self, dir_path):
+    def __find_ruleset_in_dir(self, dir_path, parent):
         files = []
         for (dirpath, dirnames, filenames) in os.walk(dir_path):
             files.extend(filenames)
             break
         if "comdaan_ruleset.py" in files:
-            spec = importlib.util.spec_from_file_location(os.path.basename(dir_path + "_ruleset"),
-                                                          os.path.join(dir_path, "comdaan_ruleset.py"))
-            module = importlib.util.module_from_spec(spec)
+            sys.path.insert(0, parent)
+            module_name = os.path.basename(dir_path) + ".comdaan_ruleset"
             try:
-                spec.loader.exec_module(module)
-                return module
+                return importlib.import_module(module_name)
+
             except:
-                print("Error: An error occurred with : " + str(module), file=sys.stderr)
+                print("Error: An error occurred with : " + module_name, file=sys.stderr)
 
     def __find_rulesets(self, path):
         modules = []
         while os.path.dirname(path) != path:
-            mod = self.__find_ruleset_in_dir(path)
+            parent = os.path.abspath(os.path.join(path, os.pardir))
+            mod = self.__find_ruleset_in_dir(path, parent)
             if mod is not None:
                 modules.append(mod)
-            path = os.path.abspath(os.path.join(path, os.pardir))
+            path = parent
         return modules
 
     def add_repository(self, path):
@@ -111,9 +114,11 @@ class GitParser:
                     self.add_repositories(subpath)
 
     def get_log(self, start_date=None, end_date=None):
-        entries = []
-        for path in self.__paths:
-            entries.extend(self.__create_log_entries(path, start_date, end_date))
+        def wrapper(path):
+            return self.__create_log_entries(path, start_date, end_date)
+
+        with Pool() as pool:
+            entries = reduce(lambda a, b: a + b, pool.map(wrapper, self.__paths))
 
         return pandas.DataFrame(entries, columns=GIT_COMMIT_FIELDS + ["repository"])
 
