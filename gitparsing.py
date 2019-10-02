@@ -15,7 +15,6 @@
 # limitations under the License.
 #
 
-import sys
 from datetime import datetime
 
 from multiprocess import Pool
@@ -28,6 +27,8 @@ import subprocess
 import importlib
 import glob
 import argparse
+
+from rulesetfinding import find_rulesets
 
 GIT_COMMIT_FIELDS = ["id", "author_name", "author_email", "date", "message", "files"]
 GIT_LOG_FORMAT = ["%H", "%an", "%ae", "%ad", "%s"]
@@ -59,36 +60,12 @@ class GitParser:
         arg_parser.add_argument("-u", "--end", help="End date")
         return arg_parser
 
-    def __find_ruleset_in_dir(self, dir_path, parent):
-        files = []
-        for (dirpath, dirnames, filenames) in os.walk(dir_path):
-            files.extend(filenames)
-            break
-        if "comdaan_ruleset.py" in files:
-            sys.path.insert(0, parent)
-            module_name = os.path.basename(dir_path) + ".comdaan_ruleset"
-            try:
-                return importlib.import_module(module_name)
-
-            except:
-                print("Error: An error occurred with : " + module_name, file=sys.stderr)
-
-    def __find_rulesets(self, path):
-        modules = []
-        while os.path.dirname(path) != path:
-            parent = os.path.abspath(os.path.join(path, os.pardir))
-            mod = self.__find_ruleset_in_dir(path, parent)
-            if mod is not None:
-                modules.append(mod)
-            path = parent
-        return modules
-
     def add_repository(self, path):
         if not isinstance(path, str):
             raise ValueError("String expected")
 
         abs_path = os.path.abspath(os.path.expanduser(path))
-        self.__rulesets_per_repo[abs_path] = self.__find_rulesets(abs_path)
+        self.__rulesets_per_repo[abs_path] = find_rulesets(abs_path)
         git_path = os.path.join(abs_path, ".git")
         if not os.path.exists(git_path):
             raise ValueError("Git repository expected, no %s found" % git_path)
