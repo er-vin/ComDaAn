@@ -19,28 +19,27 @@ import os
 import sys
 
 
-def find_ruleset_in_dir(dir_path, filename):
+def find_ruleset_in_dir(dir_path, filename, parent):
     files = []
     for (dirpath, dirnames, filenames) in os.walk(dir_path):
         files.extend(filenames)
         break
     if filename in files:
-        spec = importlib.util.spec_from_file_location(
-            os.path.basename(dir_path + "_ruleset"), os.path.join(dir_path, filename)
-        )
-        module = importlib.util.module_from_spec(spec)
+        sys.path.insert(0, parent)
+        module_name = os.path.basename(dir_path) + "." + filename.split(".")[0]
         try:
-            spec.loader.exec_module(module)
-            return module
+            return importlib.import_module(module_name)
+
         except:
-            print("Error: An error occurred with : " + str(module), file=sys.stderr)
+            print("Error: An error occurred with : " + module_name, file=sys.stderr)
 
 
 def find_rulesets(path, filename="comdaan_ruleset.py"):
     modules = []
     while os.path.dirname(path) != path:
-        mod = find_ruleset_in_dir(path, filename)
+        parent = os.path.abspath(os.path.join(path, os.pardir))
+        mod = find_ruleset_in_dir(path, filename, parent)
         if mod is not None:
             modules.append(mod)
-        path = os.path.abspath(os.path.join(path, os.pardir))
+        path = parent
     return modules
