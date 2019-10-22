@@ -5,6 +5,7 @@ verify_ssl = true
 
 [dev-packages]
 black = "==19.3b0"
+pytest = "~=5.2"
 
 [packages]
 pandas = "~=0.24"
