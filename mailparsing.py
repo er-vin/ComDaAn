@@ -91,7 +91,11 @@ class MailParser:
 
         for msg in mailbox.mbox(path, factory=lambda f: message_from_binary_file(f, policy=policy.default)):
             sender = parseaddr(msg["From"])
-            body = get_body(msg)
+            try:
+                body = get_body(msg)
+            except:
+                body = "Unknown encoding. Failed to retrieve message body."
+
             email_message = {
                 "sender_name": sender[0],
                 "sender_email": sender[-1],
