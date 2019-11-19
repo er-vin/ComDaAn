@@ -28,6 +28,8 @@ from bokeh.models.annotations import Legend
 from bokeh.models.sources import ColumnDataSource
 from bokeh.palettes import Category10
 from bokeh.io import output_file
+from statsmodels.nonparametric.smoothers_lowess import lowess
+
 
 if __name__ == "__main__":
     # Parse the args before all else
@@ -37,6 +39,7 @@ if __name__ == "__main__":
     )
     arg_parser.add_argument("-t", "--title", help="Title")
     arg_parser.add_argument("-o", "--output", help="Output file (default is 'result.html')")
+    arg_parser.add_argument("-d", "--frac", help="The fraction of data used while estimating each y value")
     args = arg_parser.parse_args()
 
     start_date = args.start
@@ -53,12 +56,16 @@ if __name__ == "__main__":
     emails_by_date = emails.groupby("date")
 
     team_size = DataFrame()
+    team_size["date"] = emails_by_date.indices
     team_size["message_count"] = emails_by_date["message_id"].count()
     team_size["sender_count"] = emails_by_date["sender_name"].nunique()  # number of unique senders
 
-    smoothed = team_size.rolling(50, center=True, win_type="triang").mean()
-    team_size["message_count_smooth"] = smoothed["message_count"]
-    team_size["sender_count_smooth"] = smoothed["sender_count"]
+    y_mc = team_size["message_count"].values
+    y_sc = team_size["sender_count"].values
+    x = team_size["date"].apply(lambda date: date.timestamp()).values
+    frac = float(args.frac) if args.frac is not None else 10 * len(x) ** (-0.75)
+    team_size["message_count_lowess"] = lowess(y_mc, x, is_sorted=True, frac=frac if frac < 1 else 0.8, it=0)[:, 1]
+    team_size["sender_count_lowess"] = lowess(y_sc, x, is_sorted=True, frac=frac if frac < 1 else 0.8, it=0)[:, 1]
 
     output_file(output_filename)
 
@@ -99,7 +106,7 @@ if __name__ == "__main__":
 
     p.line(
         "date",
-        "message_count_smooth",
+        "message_count_lowess",
         source=ColumnDataSource(team_size),
         line_width=2,
         color=Category10[3][0],
@@ -107,7 +114,7 @@ if __name__ == "__main__":
     )
     p.line(
         "date",
-        "sender_count_smooth",
+        "sender_count_lowess",
         source=ColumnDataSource(team_size),
         y_range_name="team_range",
         line_width=2,
