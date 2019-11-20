@@ -33,6 +33,7 @@ from bokeh.io import output_file
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from dateutil.rrule import rrule, MONTHLY
+from statsmodels.nonparametric.smoothers_lowess import lowess
 
 
 def network_from_dataframe(dataframe):
@@ -73,6 +74,7 @@ if __name__ == "__main__":
     )
     arg_parser.add_argument("-t", "--title", help="Title")
     arg_parser.add_argument("-o", "--output", help="Output file (default is 'result.html')")
+    arg_parser.add_argument("-d", "--frac", help="The fraction of data used while estimating each y value")
     args = arg_parser.parse_args()
 
     start_date = args.start
@@ -125,28 +127,37 @@ if __name__ == "__main__":
             degrees.append(nx.degree_centrality(graph))
             sizes.append(graph.number_of_nodes())
 
-    nodes = pd.DataFrame.from_records(degrees, index=[date for (date, x) in dates])
+    date_x = [date for (date, x) in dates]
+    x = list(map(lambda date: date.timestamp(), date_x))
+    nodes = pd.DataFrame.from_records(degrees, index=date_x)
     nodes.index.name = "created_at"
     nodes.fillna(0.0, inplace=True)
-    nodes = nodes.rolling(window=3).mean()
+    frac = float(args.frac) if args.frac is not None else 10 * len(x) ** (-0.75)
+    nodes[name] = lowess(nodes[name], x, is_sorted=True, frac=frac if frac < 1 else 0.8, it=0)[:, 1]
 
-    size_df = pd.DataFrame(data={"value": sizes}, index=[date for (date, x) in dates])
+    size_df = pd.DataFrame(data={"value": sizes}, index=date_x)
     size_df.index.name = "created_at"
     size_df = size_df / size_df.max()
-    size_df.reset_index()
-    size_df = size_df[2:]
+    size_df.reset_index(inplace=True)
+    x = size_df["created_at"].apply(lambda date: date.timestamp())
+    size_df["value"] = lowess(size_df["value"], x, is_sorted=True, frac=frac if frac < 1 else 0.8, it=0)[:, 1]
 
     activity = issues.loc[:, ["author", "created_at", "id"]].groupby(["author", "created_at"]).count()
     activity.columns = ["count"]
     activity = activity.unstack(level=0)
     activity.columns = [name for (x, name) in activity.columns]
-    activity = activity[2 * window_radius : -2 * window_radius]
     activity.fillna(0.0, inplace=True)
     activity = activity / activity.max()
 
     activity_df = pd.DataFrame(activity[name])
     activity_df.columns = ["value"]
-    activity_df.reset_index()
+    activity_df.reset_index(inplace=True)
+    activity_df["created_at"] = activity_df["created_at"].apply(
+        lambda date: date if date_x[0] <= date <= date_x[-1] else None
+    )
+    activity_df.dropna(inplace=True)
+    x = activity_df["created_at"].apply(lambda date: date.timestamp())
+    activity_df["value"] = lowess(activity_df["value"], x, is_sorted=True, frac=frac if frac < 1 else 0.8, it=0)[:, 1]
 
     centrality_df = pd.DataFrame(nodes[name])
     centrality_df.columns = ["value"]
