@@ -19,7 +19,6 @@
 
 import pandas as pd
 
-from itertools import chain
 from argparse import ArgumentParser
 from datetime import timedelta, datetime
 from pytz import utc
@@ -31,6 +30,7 @@ from bokeh.models.annotations import Legend
 from bokeh.models.sources import ColumnDataSource
 from bokeh.palettes import Category10
 from bokeh.io import output_file
+from statsmodels.nonparametric.smoothers_lowess import lowess
 
 
 if __name__ == "__main__":
@@ -44,6 +44,7 @@ if __name__ == "__main__":
     )
     arg_parser.add_argument("-t", "--title", help="Title")
     arg_parser.add_argument("-o", "--output", help="Output file (default is 'result.html')")
+    arg_parser.add_argument("-d", "--frac", help="The fraction of data used while estimating each y value")
     args = arg_parser.parse_args()
 
     start_date = args.start
@@ -90,15 +91,21 @@ if __name__ == "__main__":
 
     comm_team_size = pd.DataFrame()
     comm_team_size["activity"] = comments_by_date["id"].count()
-    comm_team_size["authors_count"] = comments_by_date["author"].nunique()
+    comm_team_size["author_count"] = comments_by_date["author"].nunique()
 
-    team_size = pd.concat([author_team_size, comm_team_size])
+    team_size = pd.concat([author_team_size, comm_team_size], sort=False)
     team_size = team_size.groupby("created_at").sum()
     team_size = team_size.sort_values(by="created_at")
+    team_size.reset_index(inplace=True)
 
-    smoothed = team_size.rolling(50, center=True, win_type="triang").mean()
-    team_size["activity_smooth"] = smoothed["activity"]
-    team_size["authors_count_smooth"] = smoothed["authors_count"]
+    y_a = team_size["activity"].values
+    y_ac = team_size["author_count"].values
+    x = team_size["created_at"].apply(lambda date: date.timestamp()).values
+
+    frac = float(args.frac) if args.frac is not None else 10 * len(x) ** (-0.75)
+
+    team_size["activity_lowess"] = lowess(y_a, x, is_sorted=True, frac=frac if frac < 1 else 0.8, it=0)[:, 1]
+    team_size["author_count_lowess"] = lowess(y_ac, x, is_sorted=True, frac=frac if frac < 1 else 0.8, it=0)[:, 1]
 
     output_file(output_filename)
     p = figure(x_axis_type="datetime", sizing_mode="stretch_both", active_scroll="wheel_zoom", title=args.title)
@@ -138,7 +145,7 @@ if __name__ == "__main__":
 
     p.line(
         "created_at",
-        "activity_smooth",
+        "activity_lowess",
         source=ColumnDataSource(team_size),
         line_width=2,
         color=Category10[3][0],
@@ -146,7 +153,7 @@ if __name__ == "__main__":
     )
     p.line(
         "created_at",
-        "authors_count_smooth",
+        "author_count_lowess",
         source=ColumnDataSource(team_size),
         y_range_name="team_range",
         line_width=2,
