@@ -35,7 +35,7 @@ GIT_LOG_FORMAT = ["%H", "%an", "%ae", "%ad", "%s"]
 GIT_LOG_FORMAT = "%x1e" + "%x1f".join(GIT_LOG_FORMAT) + "%x1f"
 
 
-class GitParser:
+class _GitParser:
     def __init__(self):
         self.__paths = []
         self.__rulesets = []

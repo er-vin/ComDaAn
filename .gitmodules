@@ -1,0 +1,3 @@
+[submodule "tests/resources/repo"]
+	path = tests/resources/repo
+	url = https://anongit.kde.org/kded.git
