@@ -22,7 +22,7 @@ from datetime import datetime, timedelta
 from argparse import ArgumentParser
 from pytz import utc
 
-from issuesparsing import IssuesParser
+from issuesparsing import _IssuesParser
 from bokeh.plotting import figure, show
 from bokeh.models import HoverTool, Range1d, LinearAxis
 from bokeh.models.annotations import Legend
@@ -36,7 +36,7 @@ if __name__ == "__main__":
     # Parse the args before all else
     arg_parser = ArgumentParser(
         description="A tool for visualizing, month by month the team size and activity",
-        parents=[IssuesParser.get_argument_parser()],
+        parents=[_IssuesParser.get_argument_parser()],
     )
     arg_parser.add_argument(
         "--palette", choices=["blue4", "magma256"], default="magma", help="Choose a palette (default is magma256)"
@@ -50,17 +50,16 @@ if __name__ == "__main__":
     end_date = args.end
     output_filename = args.output or "result.html"
 
-    parser = IssuesParser()
+    parser = _IssuesParser()
     parser.add_issues_paths(args.paths)
     issues = parser.get_issues(start_date, end_date)
     issues = issues.sort_values(by="created_at")
     issues = issues.reset_index(drop=True)
 
     def filter_notes(issue):
-        for thread in issue["discussion"]:
-            for note in thread:
-                if note["system"] and note["author"]["name"] != issue["author"]:
-                    return datetime.strptime(note["created_at"], "%Y-%m-%dT%H:%M:%S.%fZ").astimezone(utc)
+        for note in issue["discussion"]:
+            if note["system"] and note["author"] != issue["author"]:
+                return note["created_at"]
         return None  # Issues that are not answered yet
 
     def get_rates(issue, issues):

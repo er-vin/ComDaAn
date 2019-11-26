@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 #
-# Copyright 2018 Kevin Ottens <ervin@ipsquad.net>
+# Copyright 2019 Christelle Zouein <christellezouein@hotmail.com>
 #
 # The authors license this file to You under the Apache License, Version 2.0
 # (the "License"); you may not use this file except in compliance with
@@ -16,13 +16,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from multiprocessing.pool import Pool
+from datetime import datetime
 
 import pandas as pd
 import networkx as nx
 
 from argparse import ArgumentParser
-from gitparsing import GitParser
+from mailparsing import _MailParser
 from bokeh.plotting import figure, show
 from bokeh.palettes import Category10
 from bokeh.models import HoverTool
@@ -31,33 +31,33 @@ from bokeh.models.sources import ColumnDataSource
 from bokeh.io import output_file
 from itertools import combinations
 from functools import reduce
-from datetime import datetime
 from dateutil.relativedelta import relativedelta
-from dateutil.rrule import rrule, MONTHLY
+from dateutil.rrule import rrule, MONTHLY, WEEKLY
 from statsmodels.nonparametric.smoothers_lowess import lowess
 
 
 def network_from_dataframe(dataframe):
-    groups = dataframe.loc[:, ["author_name", "files"]].groupby("author_name")
-    files = groups.aggregate(lambda x: reduce(set.union, x))
+    groups = dataframe.loc[:, ["sender_name", "message_id", "references"]].groupby("sender_name")
+    references = groups.aggregate(lambda x: reduce(set.union, x))
 
-    edges = list(combinations(files.index.tolist(), 2))
-    if not edges:
-        g = nx.Graph()
-        g.add_nodes_from(files.index)
-        return g
+    edges = list(combinations(references.index.tolist(), 2))
 
     edge_list = pd.DataFrame(edges, columns=["source", "target"])
+
+    # Measuring how much senders' messages reference other messages or are referenced to.
+    # A more connected sender is one that references more messages and has their messages referenced to.
     edge_list["weight"] = edge_list.apply(
-        lambda x: len(files.loc[x["source"]]["files"].intersection(files.loc[x["target"]]["files"])), axis=1
+        lambda x: len(
+            references.loc[x["source"]]["message_id"].intersection(references.loc[x["target"]]["references"])
+        ),
+        axis=1,
     )
-
-    graph = nx.convert_matrix.from_pandas_edgelist(edge_list, edge_attr=["weight"])
-
+    graph = nx.convert_matrix.from_pandas_edgelist(edge_list, edge_attr=["weight"], create_using=nx.DiGraph)
     no_edges = []
     for u, v, weight in graph.edges.data("weight"):
         if weight == 0:
             no_edges.append((u, v))
+
     graph.remove_edges_from(no_edges)
 
     return graph
@@ -66,8 +66,8 @@ def network_from_dataframe(dataframe):
 if __name__ == "__main__":
     # Parse the args before all else
     arg_parser = ArgumentParser(
-        description="A tool for exploring centrality and activity of a contributor over time",
-        parents=[GitParser.get_argument_parser()],
+        description="A tool for exploring centrality and activity of a contributor to a mailing list over time",
+        parents=[_MailParser.get_argument_parser()],
     )
     arg_parser.add_argument(
         "-n",
@@ -82,42 +82,47 @@ if __name__ == "__main__":
     end_date = args.end
     output_filename = args.output or "result.html"
 
-    parser = GitParser()
-    parser.add_repositories(args.paths)
-    log = parser.get_log(start_date, end_date)
-    log["files"] = log["files"].apply(lambda x: set(x))
-    log["date"] = log["date"].apply(lambda x: datetime(year=x.year, month=x.month, day=1))
+    parser = _MailParser()
+    parser.add_archives(args.paths)
+    emails = parser.get_emails(start_date, end_date)
+    emails["message_id"] = emails["message_id"].apply(lambda x: set([x]))
+    emails["date"] = emails["date"].apply(lambda x: datetime(year=x.year, month=x.month, day=1))
 
-    authors = list(log["author_name"].sort_values().unique())
-    if not args.name or authors.count(args.name) == 0:
-        print("Found names: %s" % authors)
+    senders = list(emails["sender_name"].sort_values().unique())
+    if not args.name or senders.count(args.name) == 0:
+        print("Found names: %s" % senders)
         exit(1)
 
     name = args.name
-
-    min_date = log["date"].min()
-    max_date = log["date"].max()
     window_radius = 1
-    date_range = rrule(
-        MONTHLY,
-        dtstart=min_date + relativedelta(months=window_radius),
-        until=max_date - relativedelta(months=window_radius),
-    )
-    dates = [
-        (date - relativedelta(months=window_radius), date + relativedelta(months=window_radius)) for date in date_range
-    ]
+    delta = relativedelta(months=window_radius)
+    freq = MONTHLY
+    min_date = emails["date"].min()
+    max_date = emails["date"].max()
+    # Reducing the date interval by two months is problematic when the mailing list spans over less than two months.
+    if max_date - relativedelta(months=2 * window_radius) < min_date:
+        delta = relativedelta(weeks=window_radius)
+        freq = WEEKLY
+
+    min_date = min_date + delta
+    max_date = max_date - delta
+
+    date_range = rrule(freq=freq, dtstart=min_date, until=max_date)
+    dates = [(date - delta, date + delta) for date in date_range]
+
+    # Compensating the difference between rrule's last date and the actual max date
+    last_date_in_df = emails["date"].max()
+    last_date_in_list = dates[-1][-1]
+    if last_date_in_list < last_date_in_df:
+        dates.append((last_date_in_list, last_date_in_df))
 
     degrees = []
     sizes = []
-    with Pool() as pool:
-        results = []
-        for start_date, end_date in dates:
-            mask = (log["date"] >= start_date) & (log["date"] <= end_date)
-            results.append(pool.apply_async(network_from_dataframe, args=(log.loc[mask],)))
-        for result in results:
-            graph = result.get()
-            degrees.append(nx.degree_centrality(graph))
-            sizes.append(graph.number_of_nodes())
+    for start_date, end_date in dates:
+        mask = (emails["date"] >= start_date) & (emails["date"] <= end_date)
+        graph = network_from_dataframe(emails.loc[mask])
+        degrees.append(nx.degree_centrality(graph))
+        sizes.append(graph.number_of_nodes())
 
     date_x = [date for (date, x) in dates]
     x = list(map(lambda date: date.timestamp(), date_x))
@@ -134,7 +139,7 @@ if __name__ == "__main__":
     x = size_df["date"].apply(lambda date: date.timestamp())
     size_df["value"] = lowess(size_df["value"], x, is_sorted=True, frac=frac if frac < 1 else 0.8, it=0)[:, 1]
 
-    activity = log.loc[:, ["author_name", "date", "id"]].groupby(["author_name", "date"]).count()
+    activity = emails.loc[:, ["sender_name", "date", "message_id"]].groupby(["sender_name", "date"]).count()
     activity.columns = ["count"]
     activity = activity.unstack(level=0)
     activity.columns = [name for (x, name) in activity.columns]
@@ -144,15 +149,13 @@ if __name__ == "__main__":
     activity_df = pd.DataFrame(activity[name])
     activity_df.columns = ["value"]
     activity_df.reset_index(inplace=True)
-    activity_df["date"] = activity_df["date"].apply(lambda date: date if date_x[0] <= date <= date_x[-1] else None)
-    activity_df.dropna(inplace=True)
+
     x = activity_df["date"].apply(lambda date: date.timestamp())
     activity_df["value"] = lowess(activity_df["value"], x, is_sorted=True, frac=frac if frac < 1 else 0.8, it=0)[:, 1]
 
     centrality_df = pd.DataFrame(nodes[name])
     centrality_df.columns = ["value"]
     centrality_df.reset_index(inplace=True)
-
     output_file(output_filename)
     p = figure(x_axis_type="datetime", sizing_mode="stretch_both", active_scroll="wheel_zoom", title=name)
     p.xaxis.axis_label = "Date"

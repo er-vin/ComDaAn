@@ -21,7 +21,7 @@ import pandas as pd
 import networkx as nx
 
 from argparse import ArgumentParser
-from mailparsing import MailParser
+from mailparsing import _MailParser
 from bokeh.plotting import figure, show
 from bokeh.models.graphs import from_networkx, NodesAndLinkedEdges
 from bokeh.models import MultiLine, Circle, HoverTool, TapTool, BoxSelectTool, LinearColorMapper
@@ -34,7 +34,7 @@ from functools import reduce
 if __name__ == "__main__":
     # Parse the args before all else
     arg_parser = ArgumentParser(
-        description="A tool for showing the interactions in email threads", parents=[MailParser.get_argument_parser()]
+        description="A tool for showing the interactions in email threads", parents=[_MailParser.get_argument_parser()]
     )
     arg_parser.add_argument("-t", "--title", help="Title")
     arg_parser.add_argument("-o", "--output", help="Output file (default is 'result.html')")
@@ -44,12 +44,10 @@ if __name__ == "__main__":
     end_date = args.end
     output_filename = args.output or "result.html"
 
-    parser = MailParser()
+    parser = _MailParser()
     parser.add_archives(args.paths)
     emails = parser.get_emails(start_date, end_date)
-    emails["references"] = emails["references"].apply(lambda x: set(x))
     emails["message_id"] = emails["message_id"].apply(lambda x: set([x]))
-
     groups = emails.loc[:, ["sender_name", "message_id", "references"]].groupby("sender_name")
     references = groups.aggregate(lambda x: reduce(set.union, x))
     edges = list(combinations(references.index.tolist(), 2))
@@ -75,7 +73,6 @@ if __name__ == "__main__":
     degrees = nx.degree_centrality(graph)
     nodes = pd.DataFrame.from_records([degrees]).transpose()
     nodes.columns = ["centrality"]
-
     palette = list(reversed(Magma11))
     color_mapper = LinearColorMapper(palette=palette, low=nodes["centrality"].min(), high=nodes["centrality"].max())
 

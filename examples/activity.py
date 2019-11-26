@@ -19,7 +19,7 @@
 
 from argparse import ArgumentParser
 from datetime import datetime, timedelta
-from gitparsing import GitParser
+from gitparsing import _GitParser
 from bokeh.plotting import figure, show
 from bokeh.models import HoverTool, LinearColorMapper
 from bokeh.models.sources import ColumnDataSource
@@ -31,7 +31,7 @@ if __name__ == "__main__":
     # Parse the args before all else
     arg_parser = ArgumentParser(
         description="A tool for visualizing, week by week, who contributes code",
-        parents=[GitParser.get_argument_parser()],
+        parents=[_GitParser.get_argument_parser()],
     )
     arg_parser.add_argument(
         "--palette", choices=["blue4", "magma256"], default="magma", help="Choose a palette (default is magma256)"
@@ -44,7 +44,7 @@ if __name__ == "__main__":
     end_date = args.end
     output_filename = args.output or "result.html"
 
-    parser = GitParser()
+    parser = _GitParser()
     parser.add_repositories(args.paths)
     log = parser.get_log(start_date, end_date)
     log["date"] = log["date"].apply(lambda x: datetime(year=x.year, month=x.month, day=x.day))
