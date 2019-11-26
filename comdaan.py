@@ -13,18 +13,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
+import networkx as nx
 import pandas as pd
 from collections import namedtuple
 from datetime import datetime, timedelta
-
-from pytz import utc
+from itertools import combinations
+from functools import reduce
 
 from gitparsing import _GitParser
 from mailparsing import _MailParser
 from issuesparsing import _IssuesParser
 
-
 Activity = namedtuple("Activity", ["dataframe", "authors"])
+Network = namedtuple("Network", ["dataframe"])
 
 
 def parse_repositories(paths, start_date=None, end_date=None):
@@ -86,4 +88,69 @@ def activity(dataframe, id_col_name, author_col_name, date_col_name, actor="repo
     weekly_activity = weekly_activity.reset_index(level=[author_col_name, date_col_name])
     weekly_activity[date_col_name] = weekly_activity[date_col_name].apply(lambda x: x - timedelta(days=3))
     weekly_activity["week_name"] = weekly_activity[date_col_name].apply(lambda x: "%s-%s" % x.isocalendar()[:2])
+
     return Activity(weekly_activity, authors)
+
+
+# If the source and target columns are the same, only the source needs to be given.
+def network(dataframe, author_col_name, target_col_name, source_col_name=None):
+    # In the case of issues and "discussion" needs processing
+    if isinstance(dataframe[target_col_name].iloc[0], list) and isinstance(dataframe[target_col_name].iloc[0][0], dict):
+        dataframe[target_col_name] = dataframe[target_col_name].apply(
+            lambda discussion: [comment[author_col_name] for comment in discussion])
+
+        authors = list(dataframe[author_col_name])
+        commenter_threads = list(dataframe[target_col_name])
+
+        edges = []
+
+        for i in range(len(authors)):
+            edges.extend([(authors[i], commenter) for commenter in commenter_threads[i]])
+        
+        edge_list = pd.DataFrame(edges, columns=["source", "target"])
+        edge_list = edge_list.groupby(["source", "target"]).size().reset_index(name="weight")
+
+    else:  # In the cases of mail and git repositories
+        def to_set(df, col):
+            if not isinstance(df[col].iloc[0], set):
+                if isinstance(df[col].iloc[0], list):
+                    df[col] = df[col].apply(lambda x: set(x))
+                else:
+                    # If x isn't an iterable, applying set to it will break it down into one. For example, a str would
+                    # a list of chars which is why we turn it into a list with only x in it and then into a set.
+                    df[col] = df[col].apply(lambda x: set([x]))
+            return df
+
+        if source_col_name is None:
+            dataframe = to_set(dataframe, target_col_name)
+            groups = dataframe.loc[:, [author_col_name, target_col_name]].groupby(author_col_name)
+            source_col_name = target_col_name
+        else:
+            dataframe = to_set(dataframe, target_col_name)
+            dataframe = to_set(dataframe, source_col_name)
+            groups = dataframe.loc[:, [author_col_name, target_col_name, source_col_name]].groupby(author_col_name)
+
+        targets = groups.aggregate(lambda x: reduce(set.union, x))
+
+        edges = list(combinations(targets.index.tolist(), 2))
+        edge_list = pd.DataFrame(edges, columns=["source", "target"])
+        edge_list["weight"] = edge_list.apply(
+            lambda x: len(
+                targets.loc[x["source"]][target_col_name].intersection(targets.loc[x["target"]][source_col_name])
+            ),
+            axis=1,
+        )
+
+    graph = nx.convert_matrix.from_pandas_edgelist(edge_list, edge_attr=["weight"])
+    no_edges = []
+    for u, v, weight in graph.edges.data("weight"):
+        if weight == 0:
+            no_edges.append((u, v))
+
+    graph.remove_edges_from(no_edges)
+
+    degrees = nx.degree_centrality(graph)
+    nodes = pd.DataFrame.from_records([degrees]).transpose()
+    nodes.columns = ["centrality"]
+
+    return Network(nodes)

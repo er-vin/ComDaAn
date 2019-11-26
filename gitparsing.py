@@ -177,7 +177,7 @@ class _GitParser:
             files = entry["files"].strip("\n")
             files = files.split("\n")
             files = list(map(lambda x: "%s:%s" % (repository, x), files))
-            entry["files"] = files
+            entry["files"] = set(files)
         except KeyError:
             entry["files"] = []
 

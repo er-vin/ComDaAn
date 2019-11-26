@@ -144,9 +144,9 @@ class _MailParser:
 
     def __postprocess_entry(self, entry, rulesets):
         if entry["references"]:
-            entry["references"] = entry["references"].split(" ")
+            entry["references"] = set(entry["references"].split(" "))
         else:
-            entry["references"] = []
+            entry["references"] = set()
 
         entry["date"] = datetime.strptime(entry["date"], "%a, %d %b %Y %H:%M:%S %z").astimezone(utc)
 
