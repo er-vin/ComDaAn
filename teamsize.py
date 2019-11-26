@@ -17,7 +17,6 @@
 # limitations under the License.
 #
 
-
 from argparse import ArgumentParser
 from datetime import timedelta
 from gitparsing import GitParser
@@ -30,6 +29,8 @@ from bokeh.models.sources import ColumnDataSource
 from bokeh.palettes import Category10
 from bokeh.io import output_file
 
+from statsmodels.nonparametric.smoothers_lowess import lowess
+
 
 if __name__ == "__main__":
     # Parse the args before all else
@@ -39,6 +40,7 @@ if __name__ == "__main__":
     )
     arg_parser.add_argument("-t", "--title", help="Title")
     arg_parser.add_argument("-o", "--output", help="Output file (default is 'result.html')")
+    arg_parser.add_argument("-d", "--frac", help="The fraction of data used while estimating each y value")
     args = arg_parser.parse_args()
 
     start_date = args.start
@@ -53,14 +55,28 @@ if __name__ == "__main__":
     log["date"] = log["date"].apply(lambda x: x - timedelta(days=3))
 
     log_by_date = log.groupby("date")
-
     team_size = DataFrame()
+    team_size["date"] = log_by_date.indices
     team_size["commit_count"] = log_by_date["id"].count()
     team_size["authors_count"] = log_by_date["author_name"].nunique()
 
-    smoothed = team_size.rolling(50, center=True, win_type="triang").mean()
-    team_size["commit_count_smooth"] = smoothed["commit_count"]
-    team_size["authors_count_smooth"] = smoothed["authors_count"]
+    y_cc = team_size["commit_count"].values
+    y_ac = team_size["authors_count"].values
+    x = team_size["date"].apply(lambda date: date.timestamp()).values
+
+    # "frac" is the fraction of data used to estimate each value
+    # Its values can be predicted accurately enough with the following power function. It was obtained by a regression
+    # analysis of a number of data sets and their corresponding frac.
+    frac = float(args.frac) if args.frac is not None else 10 * len(x) ** (-0.75)
+
+    # "it" is the number of residual based reweightings. If it is equal to 2, then additional weighted local regressions
+    # are performed where the weights are the same as the above weights times the lowess bisquare function of the
+    # residuals.
+    cc_lowess_regression = lowess(y_cc, x, is_sorted=True, frac=frac if frac < 1 else 0.8, it=0)
+    ac_lowess_regression = lowess(y_ac, x, is_sorted=True, frac=frac if frac < 1 else 0.8, it=0)
+
+    team_size["commit_count_lowess"] = cc_lowess_regression[:, 1]
+    team_size["author_count_lowess"] = ac_lowess_regression[:, 1]
 
     output_file(output_filename)
     p = figure(x_axis_type="datetime", sizing_mode="stretch_both", active_scroll="wheel_zoom", title=args.title)
@@ -100,7 +116,7 @@ if __name__ == "__main__":
 
     p.line(
         "date",
-        "commit_count_smooth",
+        "commit_count_lowess",
         source=ColumnDataSource(team_size),
         line_width=2,
         color=Category10[3][0],
@@ -108,11 +124,12 @@ if __name__ == "__main__":
     )
     p.line(
         "date",
-        "authors_count_smooth",
+        "author_count_lowess",
         source=ColumnDataSource(team_size),
         y_range_name="team_range",
         line_width=2,
         color=Category10[3][1],
         legend="Team Size",
     )
+
     show(p)

@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 #
 # Copyright 2019 Christelle Zouein <christellezouein@hotmail.com>
 #
@@ -26,6 +29,7 @@ from bokeh.models.annotations import Legend
 from bokeh.models.sources import ColumnDataSource
 from bokeh.palettes import Category10
 from bokeh.io import output_file
+from statsmodels.nonparametric.smoothers_lowess import lowess
 
 
 if __name__ == "__main__":
@@ -39,6 +43,7 @@ if __name__ == "__main__":
     )
     arg_parser.add_argument("-t", "--title", help="Title")
     arg_parser.add_argument("-o", "--output", help="Output file (default is 'result.html')")
+    arg_parser.add_argument("-d", "--frac", help="The fraction of data used while estimating each y value")
     args = arg_parser.parse_args()
 
     start_date = args.start
@@ -76,8 +81,12 @@ if __name__ == "__main__":
     response_time["response_time"] = (issues_answered["discussion"] - issues_answered["created_at"]) / timedelta(
         hours=1
     )
-    smoothed = response_time.rolling(100, center=True, win_type="triang").mean()
-    response_time["response_time_smooth"] = smoothed["response_time"]
+
+    y_rt = response_time["response_time"].values
+    x = response_time["date"].apply(lambda date: date.timestamp()).values
+
+    frac = float(args.frac) if args.frac is not None else 10 * len(x) ** (-0.75)
+    response_time["response_time_lowess"] = lowess(y_rt, x, is_sorted=True, frac=frac if frac < 1 else 0.8, it=0)[:, 1]
 
     response_time["response_time_formatted"] = response_time["response_time"].apply(
         lambda x: "{} day(s) and {} hour(s)".format(int(x // 24), int(x % 24))
@@ -108,7 +117,7 @@ if __name__ == "__main__":
         width=0.4,
         color=Category10[3][1],
         y_range_name="response_range",
-        legend="Unanswered",
+        legend="Unanswered issues",
     )
 
     p.circle(
@@ -122,7 +131,7 @@ if __name__ == "__main__":
 
     p.line(
         "date",
-        "response_time_smooth",
+        "response_time_lowess",
         source=ColumnDataSource(response_time),
         line_width=3,
         color=Category10[3][0],
