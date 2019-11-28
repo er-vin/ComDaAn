@@ -33,6 +33,7 @@ Activity = namedtuple("Activity", ["dataframe", "authors"])
 TeamSize = namedtuple("TeamSize", ["dataframe"])
 Network = namedtuple("Network", ["dataframe"])
 Centrality = namedtuple("Centrality", ["centrality", "activity", "size"])
+Response = namedtuple("Response", ["unanswered_issues", "response_time"])
 
 
 def _network_from_dataframe(dataframe, author_col_name, target_col_name, source_col_name):
@@ -304,3 +305,46 @@ def centrality(
     centrality_df.reset_index(inplace=True)
 
     return Centrality(centrality_df, activity_df, size_df)
+
+
+def response(issues, id_col_name, author_col_name, date_col_name, discussion_col_name, frac=None):
+    issues = issues.sort_values(by=date_col_name)
+    issues = issues.reset_index(drop=True)
+
+    def filter_notes(issue):
+        for comment in issue[discussion_col_name]:
+            if comment["system"] and comment[author_col_name] != issue[author_col_name]:
+                return comment[date_col_name]
+        return None  # Issues that are not answered yet
+
+    def get_rates(issue, issues):
+        answered = 0
+        for index, i in issues.iterrows():
+            if not pd.isna(i[discussion_col_name]) and i[discussion_col_name] <= issue[date_col_name]:
+                answered += 1
+            # id is a unique identifier and so ensures issue and i are the same
+            if issue[id_col_name] == i[id_col_name]:
+                return index - answered + 1  # Indices start at 0
+        return None
+
+    issues[discussion_col_name] = issues.apply(filter_notes, axis=1)
+    issues["unanswered_to_this_date"] = issues.apply(get_rates, args=(issues,), axis=1)
+    issues_answered = issues[pd.notnull(issues[discussion_col_name])]
+
+    response_time = pd.DataFrame()
+    response_time[date_col_name] = issues_answered[date_col_name]
+    response_time["response_time"] = (
+        issues_answered[discussion_col_name] - issues_answered[date_col_name]
+    ) / timedelta(hours=1)
+
+    y_rt = response_time["response_time"].values
+    x = response_time[date_col_name].apply(lambda date: date.timestamp()).values
+
+    frac = float(frac) if frac is not None else 10 * len(x) ** (-0.75)
+    response_time["response_time_lowess"] = lowess(y_rt, x, is_sorted=True, frac=frac if frac < 1 else 0.8, it=0)[:, 1]
+
+    response_time["response_time_formatted"] = response_time["response_time"].apply(
+        lambda x: "{} day(s) and {} hour(s)".format(int(x // 24), int(x % 24))
+    )
+
+    return Response(issues.loc[:, [date_col_name, "unanswered_to_this_date"]], response_time)
