@@ -21,6 +21,9 @@ from datetime import datetime, timedelta
 from itertools import combinations
 from functools import reduce
 from statsmodels.nonparametric.smoothers_lowess import lowess
+from dateutil.relativedelta import relativedelta
+from dateutil.rrule import rrule, MONTHLY, WEEKLY
+from multiprocessing.pool import Pool
 
 from gitparsing import _GitParser
 from mailparsing import _MailParser
@@ -29,6 +32,7 @@ from issuesparsing import _IssuesParser
 Activity = namedtuple("Activity", ["dataframe", "authors"])
 TeamSize = namedtuple("TeamSize", ["dataframe"])
 Network = namedtuple("Network", ["dataframe"])
+Centrality = namedtuple("Centrality", ["centrality", "activity", "size"])
 
 
 def _network_from_dataframe(dataframe, author_col_name, target_col_name, source_col_name):
@@ -215,3 +219,88 @@ def network(dataframe, author_col_name, target_col_name, source_col_name=None):
     nodes.columns = ["centrality"]
 
     return Network(nodes)
+
+
+def centrality(
+    dataframe, id_col_name, author_col_name, date_col_name, target_col_name, source_col_name=None, name=None, frac=None
+):
+    authors = list(dataframe[author_col_name].sort_values().unique())
+    if not name or authors.count(name) == 0:
+        return authors
+    dataframe[date_col_name] = dataframe[date_col_name].apply(lambda x: datetime(year=x.year, month=x.month, day=1))
+    window_radius = 1
+    delta = relativedelta(months=window_radius)
+    freq = MONTHLY
+    min_date = dataframe[date_col_name].min()
+    max_date = dataframe[date_col_name].max()
+    # Reducing the date interval by two months is problematic when the data source spans over less than two months.
+    if max_date - relativedelta(months=2 * window_radius) < min_date:
+        delta = relativedelta(weeks=window_radius)
+        freq = WEEKLY
+
+    min_date = min_date + delta
+    max_date = max_date - delta
+
+    date_range = rrule(freq=freq, dtstart=min_date, until=max_date)
+    dates = [(date - delta, date + delta) for date in date_range]
+
+    # Compensating the difference between rrule's last date and the actual max date
+    last_date_in_df = dataframe[date_col_name].max()
+    last_date_in_list = dates[-1][-1]
+    if last_date_in_list < last_date_in_df:
+        dates.append((last_date_in_list, last_date_in_df))
+
+    degrees = []
+    sizes = []
+    with Pool() as pool:
+        results = []
+        for start_date, end_date in dates:
+            mask = (dataframe[date_col_name] >= start_date) & (dataframe[date_col_name] <= end_date)
+            results.append(
+                pool.apply_async(
+                    _network_from_dataframe,
+                    args=(dataframe.loc[mask], author_col_name, target_col_name, source_col_name),
+                )
+            )
+        for result in results:
+            graph = result.get()
+            degrees.append(nx.degree_centrality(graph))
+            sizes.append(graph.number_of_nodes())
+
+    date_x = [date for (date, x) in dates]
+    x = list(map(lambda date: date.timestamp(), date_x))
+    nodes = pd.DataFrame.from_records(degrees, index=date_x)
+    nodes.index.name = date_col_name
+    nodes.fillna(0.0, inplace=True)
+    frac = float(frac) if frac is not None else 10 * len(x) ** (-0.75)
+    nodes[name] = lowess(nodes[name], x, is_sorted=True, frac=frac if frac < 1 else 0.8, it=0)[:, 1]
+
+    size_df = pd.DataFrame(data={"value": sizes}, index=date_x)
+    size_df.index.name = date_col_name
+    size_df = size_df / size_df.max()
+    size_df.reset_index(inplace=True)
+    x = size_df[date_col_name].apply(lambda date: date.timestamp())
+    size_df["value"] = lowess(size_df["value"], x, is_sorted=True, frac=frac if frac < 1 else 0.8, it=0)[:, 1]
+
+    activity = (
+        dataframe.loc[:, [author_col_name, date_col_name, id_col_name]]
+        .groupby([author_col_name, date_col_name])
+        .count()
+    )
+    activity.columns = ["count"]
+    activity = activity.unstack(level=0)
+    activity.columns = [name for (x, name) in activity.columns]
+    activity.fillna(0.0, inplace=True)
+    activity = activity / activity.max()
+
+    activity_df = pd.DataFrame(activity[name])
+    activity_df.columns = ["value"]
+    activity_df.reset_index(inplace=True)
+    x = activity_df[date_col_name].apply(lambda date: date.timestamp())
+    activity_df["value"] = lowess(activity_df["value"], x, is_sorted=True, frac=frac if frac < 1 else 0.8, it=0)[:, 1]
+
+    centrality_df = pd.DataFrame(nodes[name])
+    centrality_df.columns = ["value"]
+    centrality_df.reset_index(inplace=True)
+
+    return Centrality(centrality_df, activity_df, size_df)
