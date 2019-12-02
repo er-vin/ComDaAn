@@ -64,7 +64,7 @@ def test_teamsize_on_issues_with_reporters_cols():
     data = parse_issues(PATH_TO_RESOURCES + "issues.json")
     a = teamsize(data, "id", "author", "created_at")
     assert a.dataframe.columns.tolist() == [
-        "created_at",
+        "date",
         "entry_count",
         "author_count",
         "entry_count_lowess",
@@ -82,7 +82,7 @@ def test_teamsize_on_issues_with_commenters_cols():
     data = parse_issues(PATH_TO_RESOURCES + "issues.json")
     a = teamsize(data, "id", "author", "created_at", actor="commenter")
     assert a.dataframe.columns.tolist() == [
-        "created_at",
+        "date",
         "entry_count",
         "author_count",
         "entry_count_lowess",

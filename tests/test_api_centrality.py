@@ -121,19 +121,19 @@ def test_centrality_on_issues_return_type():
 def test_centrality_on_issues_activity_cols():
     data = parse_issues(PATH_TO_RESOURCES + "issues.json")
     a = centrality(data, "id", "author", "created_at", "discussion", name="mixih")
-    assert a.activity.columns.tolist() == ["created_at", "value"]
+    assert a.activity.columns.tolist() == ["date", "value"]
 
 
 def test_centrality_on_issues_centrality_cols():
     data = parse_issues(PATH_TO_RESOURCES + "issues.json")
     a = centrality(data, "id", "author", "created_at", "discussion", name="mixih")
-    assert a.centrality.columns.tolist() == ["created_at", "value"]
+    assert a.centrality.columns.tolist() == ["date", "value"]
 
 
 def test_centrality_on_issues_size_cols():
     data = parse_issues(PATH_TO_RESOURCES + "issues.json")
     a = centrality(data, "id", "author", "created_at", "discussion", name="mixih")
-    assert a.size.columns.tolist() == ["created_at", "value"]
+    assert a.size.columns.tolist() == ["date", "value"]
 
 
 def test_centrality_on_issues_centrality_df_and_size_df_row_count():

@@ -36,7 +36,7 @@ def test_activity_on_repository_cols():
         raise Exception("Empty git submodule. Try: git submodule update --init")
     data = parse_repositories(repo)
     a = activity(data, "id", "author_name", "date")
-    assert a.dataframe.columns.tolist() == ["author_name", "date", "count", "week_name"]
+    assert a.dataframe.columns.tolist() == ["name", "date", "count", "week_name"]
 
 
 def test_activity_on_repository_row_count():
@@ -60,7 +60,7 @@ def test_activity_on_repository_author_count():
 def test_activity_on_mailinglist_cols():
     data = parse_mail(PATH_TO_RESOURCES + "mailinglist.mbox")
     a = activity(data, "message_id", "sender_name", "date")
-    assert a.dataframe.columns.tolist() == ["sender_name", "date", "count", "week_name"]
+    assert a.dataframe.columns.tolist() == ["name", "date", "count", "week_name"]
 
 
 def test_activity_on_mailinglist_row_count():
@@ -78,7 +78,7 @@ def test_activity_on_mailinglist_author_count():
 def test_activity_on_issues_with_reporters_cols():
     data = parse_issues(PATH_TO_RESOURCES + "issues.json")
     a = activity(data, "id", "author", "created_at")
-    assert a.dataframe.columns.tolist() == ["author", "created_at", "count", "week_name"]
+    assert a.dataframe.columns.tolist() == ["name", "date", "count", "week_name"]
 
 
 def test_activity_on_issues_reported_row_count():
@@ -96,7 +96,7 @@ def test_activity_on_issues_reporter_count():
 def test_activity_on_issues_with_commenters_cols():
     data = parse_issues(PATH_TO_RESOURCES + "issues.json")
     a = activity(data, "id", "author", "created_at", actor="commenter")
-    assert a.dataframe.columns.tolist() == ["author", "created_at", "count", "week_name"]
+    assert a.dataframe.columns.tolist() == ["name", "date", "count", "week_name"]
 
 
 def test_activity_on_issue_comments_row_count():

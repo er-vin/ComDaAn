@@ -16,31 +16,30 @@
 
 import networkx as nx
 import pandas as pd
-from collections import namedtuple
 from datetime import datetime, timedelta
 from itertools import combinations
 from functools import reduce
+
+from bokeh.layouts import gridplot
 from statsmodels.nonparametric.smoothers_lowess import lowess
 from dateutil.relativedelta import relativedelta
 from dateutil.rrule import rrule, MONTHLY, WEEKLY
 from multiprocessing.pool import Pool
+from bokeh.io import output_file
+from bokeh.plotting import show
 
 from gitparsing import _GitParser
 from mailparsing import _MailParser
 from issuesparsing import _IssuesParser
-
-Activity = namedtuple("Activity", ["dataframe", "authors"])
-TeamSize = namedtuple("TeamSize", ["dataframe"])
-Network = namedtuple("Network", ["dataframe"])
-Centrality = namedtuple("Centrality", ["centrality", "activity", "size"])
-Response = namedtuple("Response", ["unanswered_issues", "response_time"])
+from object_types import Activity, Network, Centrality, TeamSize, Response
+from display import _display
 
 
 def _network_from_dataframe(dataframe, author_col_name, target_col_name, source_col_name):
     if dataframe.empty:
         return nx.empty_graph()
     # In the case of issues and "discussion" needs processing
-    if isinstance(dataframe[target_col_name].iloc[0], list) and isinstance(dataframe[target_col_name].iloc[0][0], dict):
+    if "iid" in dataframe:
         dataframe[target_col_name] = dataframe[target_col_name].apply(
             lambda discussion: [comment[author_col_name] for comment in discussion]
         )
@@ -82,7 +81,7 @@ def _network_from_dataframe(dataframe, author_col_name, target_col_name, source_
         if not edge_list.empty:
             edge_list["weight"] = edge_list.apply(
                 lambda x: len(
-                    targets.loc[x["source"]][target_col_name].intersection(targets.loc[x["target"]][source_col_name])
+                    targets.loc[x["source"]][source_col_name].intersection(targets.loc[x["target"]][target_col_name])
                 ),
                 axis=1,
             )
@@ -159,7 +158,7 @@ def activity(dataframe, id_col_name, author_col_name, date_col_name, actor="repo
     weekly_activity = weekly_activity.reset_index(level=[author_col_name, date_col_name])
     weekly_activity[date_col_name] = weekly_activity[date_col_name].apply(lambda x: x - timedelta(days=3))
     weekly_activity["week_name"] = weekly_activity[date_col_name].apply(lambda x: "%s-%s" % x.isocalendar()[:2])
-
+    weekly_activity = weekly_activity.rename(columns={author_col_name: "name", date_col_name: "date"})
     return Activity(weekly_activity, authors)
 
 
@@ -208,7 +207,7 @@ def teamsize(dataframe, id_col_name, author_col_name, date_col_name, actor="repo
 
     team_size["entry_count_lowess"] = lowess(y_a, x, is_sorted=True, frac=frac if frac < 1 else 0.8, it=0)[:, 1]
     team_size["author_count_lowess"] = lowess(y_ac, x, is_sorted=True, frac=frac if frac < 1 else 0.8, it=0)[:, 1]
-
+    team_size = team_size.rename(columns={date_col_name: "date"})
     return TeamSize(team_size)
 
 
@@ -219,7 +218,7 @@ def network(dataframe, author_col_name, target_col_name, source_col_name=None):
     nodes = pd.DataFrame.from_records([degrees]).transpose()
     nodes.columns = ["centrality"]
 
-    return Network(nodes)
+    return Network(nodes, graph)
 
 
 def centrality(
@@ -304,7 +303,12 @@ def centrality(
     centrality_df.columns = ["value"]
     centrality_df.reset_index(inplace=True)
 
-    return Centrality(centrality_df, activity_df, size_df)
+    return Centrality(
+        centrality_df.rename(columns={date_col_name: "date"}),
+        activity_df.rename(columns={date_col_name: "date"}),
+        size_df.rename(columns={date_col_name: "date"}),
+        name,
+    )
 
 
 def response(issues, id_col_name, author_col_name, date_col_name, discussion_col_name, frac=None):
@@ -346,5 +350,28 @@ def response(issues, id_col_name, author_col_name, date_col_name, discussion_col
     response_time["response_time_formatted"] = response_time["response_time"].apply(
         lambda x: "{} day(s) and {} hour(s)".format(int(x // 24), int(x % 24))
     )
+    issues = issues.rename(columns={date_col_name: "date"})
+    response_time = response_time.rename(columns={date_col_name: "date"})
+    return Response(issues.loc[:, ["date", "unanswered_to_this_date"]], response_time)
 
-    return Response(issues.loc[:, [date_col_name, "unanswered_to_this_date"]], response_time)
+
+def display(objects, title=None, output="result.html", palette="magma256"):
+    if not isinstance(objects, list):
+        objects = [objects]
+    if palette != "magma256" and palette != "blue4":
+        raise NameError("{} palette not found. Please choose either 'magma256' or 'blue4'".format(palette))
+    output_file(output)
+
+    # Grouping objects by their types
+    accumulation = {}
+    for objs in objects:
+        accumulation.setdefault(type(objs), []).append(objs)
+    objects_by_type = accumulation.values()
+
+    plots = []
+    for objs in objects_by_type:
+        p = _display(objs, title, palette)
+        plots.append(p)
+
+    gp = gridplot(plots, ncols=2, sizing_mode="stretch_both")
+    show(gp)
