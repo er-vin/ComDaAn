@@ -100,18 +100,54 @@ def _network_from_dataframe(dataframe, author_col_name, target_col_name, source_
 
 
 def parse_repositories(paths, start_date=None, end_date=None):
+    """
+    This function parses a git repository or git repositories.
+
+    :param paths: path or list of paths of git repositories to parse.
+    :type paths: str or list or str
+    :param start_date: Considering entries created after start_date. It should follow the "YYYY-MM-DD" format.
+    :type start_date: str
+    :param end_date: Considering entries created before end_date. It should follow the "YYYY-MM-DD" format.
+    :type start_date: str
+    :return: pandas.DataFrame containing all entries of the repositories.
+    """
+
     parser = _GitParser()
     parser.add_repositories(paths)
     return parser.get_log(start_date, end_date)
 
 
 def parse_mail(paths, start_date=None, end_date=None):
+    """
+    This function parses mailing lists in MBOX format.
+
+    :param paths: path or list of paths of MBOX files to parse.
+    :type paths: str or list or str
+    :param start_date: Considering messages sent after start_date. It should follow the "YYYY-MM-DD" format.
+    :type start_date: str
+    :param end_date: Considering messages sent before end_date. It should follow the "YYYY-MM-DD" format.
+    :type start_date: str
+    :return: pandas.DataFrame containing all messages of the mailing lists.
+    """
+
     parser = _MailParser()
     parser.add_archives(paths)
     return parser.get_emails(start_date, end_date)
 
 
 def parse_issues(paths, start_date=None, end_date=None):
+    """
+    This function parses GitLab Issues stored in JSON files.
+
+    :param paths: path or list of paths of JSON files to parse.
+    :type paths: str or list or str
+    :param start_date: Considering issues created after start_date. It should follow the "YYYY-MM-DD" format.
+    :type start_date: str
+    :param end_date: Considering issues created before end_date. It should follow the "YYYY-MM-DD" format.
+    :type start_date: str
+    :return: pandas.DataFrame containing all issues.
+    """
+
     parser = _IssuesParser()
     parser.add_issues_paths(paths)
     return parser.get_issues(start_date, end_date)
@@ -120,6 +156,25 @@ def parse_issues(paths, start_date=None, end_date=None):
 # In the case of commenter activity, id_col_name, author_col_name and date_col_name, are the names of the corresponding
 # fields in dateframe["discussion"]. With parse_issues, they are the same as the ones directly in the dataframe.
 def activity(dataframe, id_col_name, author_col_name, date_col_name, actor="reporter"):
+    """
+    This function runs an activity analysis on the dataset provided. It explores the weekly activity of the members of a
+    team or community.
+
+    :param dataframe: DataFrame containing the data on which to conduct the activity analysis.
+        It must contain at least an *id*, a *name* and a *date* column.
+    :type dataframe: pandas.DataFrame
+    :param id_col_name: Name of the column containing unique identifiers for each entry.
+    :type id_col_name: str
+    :param author_col_name: Name of the column containing the authors of the entries.
+    :type author_col_name: str
+    :param date_col_name: Name of the column containing the dates of the entries.
+    :type date_col_name: str
+    :param actor: Flag parameter to signal which actor to consider in the analysis.
+        It is only relevant for issues and has a default value of "reporter".
+    :type actor: str or list of str
+    :return: Object of type Activity containing a *dataframe* field and an *authors* one.
+    """
+
     dataframe[date_col_name] = dataframe[date_col_name].apply(lambda x: datetime(year=x.year, month=x.month, day=x.day))
 
     authors = []
@@ -163,6 +218,27 @@ def activity(dataframe, id_col_name, author_col_name, date_col_name, actor="repo
 
 
 def teamsize(dataframe, id_col_name, author_col_name, date_col_name, actor="reporter", frac=None):
+    """
+    This function runs a teamsize analysis on the dataset provided. It explores the evolution of the size and activity
+    of a community or a team over time.
+
+    :param dataframe: DataFrame containing the data on which to conduct the activity analysis.
+        It must contain at least an *id*, a *name* and a *date* column.
+    :type dataframe: pandas.DataFrame
+    :param id_col_name: Name of the column containing unique identifiers for each entry.
+    :type id_col_name: str
+    :param author_col_name: Name of the column containing the authors of the entries.
+    :type author_col_name: str
+    :param date_col_name: Name of the column containing the dates of the entries.
+    :type date_col_name: str
+    :param actor: Flag parameter to signal which actor to consider in the analysis.
+        It is only relevant for issues and has a default value of "reporter".
+    :type actor: str or list of str
+    :param frac: The fraction of data to use for the curve smoothing factor.
+    :type frac: float
+    :return: Object of type TeamSize containing a *dataframe* field.
+    """
+
     author_team_size = pd.DataFrame()
     comm_team_size = pd.DataFrame()
 
@@ -213,6 +289,23 @@ def teamsize(dataframe, id_col_name, author_col_name, date_col_name, actor="repo
 
 # If the source and target columns are the same, only the source needs to be given.
 def network(dataframe, author_col_name, target_col_name, source_col_name=None):
+    """
+    This function runs a Network analysis on the dataset provided.
+
+    :param dataframe: DataFrame containing the data on which to conduct the activity analysis.
+        It must contain at least an *author*, a *target* and a *source* column.
+    :type dataframe: pandas.DataFrame
+    :param author_col_name: Name of the column containing the authors of the entries.
+    :type author_col_name: str
+    :param target_col_name: Name of the column containing the targets of the relationship that the network analysis is
+        supposed to exploring.
+    :type target_col_name: str
+    :param source_col_name: Name of the column containing the sources of the relationships that the network analysis is
+        supposed to be exploring.
+    :type source_col_name: str
+    :return: Object of type network containing a *dataframe* field and a *graph* one.
+    """
+
     graph = _network_from_dataframe(dataframe, author_col_name, target_col_name, source_col_name)
     degrees = nx.degree_centrality(graph)
     nodes = pd.DataFrame.from_records([degrees]).transpose()
@@ -224,6 +317,32 @@ def network(dataframe, author_col_name, target_col_name, source_col_name=None):
 def centrality(
     dataframe, id_col_name, author_col_name, date_col_name, target_col_name, source_col_name=None, name=None, frac=None
 ):
+    """
+    This function runs a Centrality analysis on the dataset provided. It explores the evolution of an individuals
+    centrality over time as well as their activity and the size of their team or community.
+
+    :param dataframe: DataFrame containing the data on which to conduct the activity analysis.
+        It must contain at least an *id*, a *name*, a *date*, a *target* and a *source* column.
+    :type dataframe: pandas.DataFrame
+    :param id_col_name: Name of the column containing unique identifiers for each entry.
+    :type id_col_name: str
+    :param author_col_name: Name of the column containing the authors of the entries.
+    :type author_col_name: str
+    :param date_col_name: Name of the column containing the dates of the entries.
+    :type date_col_name: str
+    :param target_col_name: Name of the column containing the targets of the relationship that the network analysis is
+        supposed to exploring.
+    :type target_col_name: str
+    :param source_col_name: Name of the column containing the sources of the relationships that the network analysis is
+        supposed to be exploring.
+    :type source_col_name: str
+    :param name: Name of the author whose centrality is to analyze.
+    :type name: str
+    :param frac: The fraction of data to use for the curve smoothing factor.
+    :type frac: float
+    :return: Object of type Centrality containing a *dataframe* field.
+    """
+
     authors = list(dataframe[author_col_name].sort_values().unique())
     if not name or authors.count(name) == 0:
         return authors
@@ -312,6 +431,27 @@ def centrality(
 
 
 def response(issues, id_col_name, author_col_name, date_col_name, discussion_col_name, frac=None):
+    """
+    This function runs an issue response time analysis on the dataset provided. It returns the number of unanswered
+    issues at each point in time as well as a curve representing the evolution of the reponse time to the issues of a
+    certain project or community.
+
+    :param issues: DataFrame containing the issues on which to conduct the response analysis.
+        It must contain at least an *id*, a *name*, a *date* and a *discussion* column.
+    :type issues: pandas.DataFrame
+    :param id_col_name: Name of the column containing unique identifiers for each entry.
+    :type id_col_name: str
+    :param author_col_name: Name of the column containing the authors of the entries.
+    :type author_col_name: str
+    :param date_col_name: Name of the column containing the dates of the entries.
+    :type date_col_name: str
+    :param discussion_col_name: Name of the discussion column in the issues DataFrame.
+    :type discussion_col_name: str
+    :param frac: The fraction of data to use for the curve smoothing factor.
+    :type frac: float
+    :return: Object of type Response containing an *unanswered_issues* field and *response_time* one.
+    """
+
     issues = issues.sort_values(by=date_col_name)
     issues = issues.reset_index(drop=True)
 
@@ -356,6 +496,20 @@ def response(issues, id_col_name, author_col_name, date_col_name, discussion_col
 
 
 def display(objects, title=None, output="result.html", palette="magma256"):
+    """
+    This function displays the results of the analyses.
+
+    :param objects: An object of type Activity, TeamSize, Network, Centrality or Response or a list of such objects.
+    :type objects: Activity, TeamSize, Network, Centrality or Response or a list of them.
+    :param title: Title of the figure to display.
+    :type title: str
+    :param output: Output HTML file, default is *result.html*.
+    :type output: str
+    :param palette: Name of the bokeh palette to use.
+    :type palette: str
+    :return: No return value but opens the HTML file with the results.
+    """
+
     if not isinstance(objects, list):
         objects = [objects]
     if palette != "magma256" and palette != "blue4":
