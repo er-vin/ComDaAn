@@ -38,65 +38,18 @@ from display import _display
 def _network_from_dataframe(dataframe, author_col_name, target_col_name, source_col_name):
     if dataframe.empty:
         return nx.empty_graph()
-    # In the case of issues and "discussion" needs processing
+
     if "iid" in dataframe:
-        dataframe[target_col_name] = dataframe[target_col_name].apply(
-            lambda discussion: [comment[author_col_name] for comment in discussion]
-        )
+        edge_list = _get_issues_edge_list(dataframe, author_col_name, target_col_name)
+    else:
+        edge_list = _get_edge_list(dataframe, author_col_name, target_col_name, source_col_name)
 
-        authors = list(dataframe[author_col_name])
-        commenter_threads = list(dataframe[target_col_name])
-
-        edges = []
-
-        for i in range(len(authors)):
-            edges.extend([(authors[i], commenter) for commenter in commenter_threads[i]])
-
-        edge_list = pd.DataFrame(edges, columns=["source", "target"])
-        edge_list = edge_list.groupby(["source", "target"]).size().reset_index(name="weight")
-
-    else:  # In the cases of mail and git repositories
-
-        def to_set(df, col):
-            if not isinstance(df[col].iloc[0], set):
-                if isinstance(df[col].iloc[0], list):
-                    df[col] = df[col].apply(lambda x: set(x))
-                else:
-                    # If x isn't an iterable, applying set to it will break it down into one. For example, a str would
-                    # a list of chars which is why we turn it into a list with only x in it and then into a set.
-                    df[col] = df[col].apply(lambda x: set([x]))
-            return df
-
-        if source_col_name is None:
-            dataframe = to_set(dataframe, target_col_name)
-            groups = dataframe.loc[:, [author_col_name, target_col_name]].groupby(author_col_name)
-            source_col_name = target_col_name
-        else:
-            dataframe = to_set(dataframe, target_col_name)
-            dataframe = to_set(dataframe, source_col_name)
-            groups = dataframe.loc[:, [author_col_name, target_col_name, source_col_name]].groupby(author_col_name)
-        targets = groups.aggregate(lambda x: reduce(set.union, x))
-        edges = list(combinations(targets.index.tolist(), 2))
-        edge_list = pd.DataFrame(edges, columns=["source", "target"])
-        if not edge_list.empty:
-            edge_list["weight"] = edge_list.apply(
-                lambda x: len(
-                    targets.loc[x["source"]][source_col_name].intersection(targets.loc[x["target"]][target_col_name])
-                ),
-                axis=1,
-            )
-        else:
-            edge_list = edge_list.reindex(edge_list.columns.tolist() + ["weight"], axis=1)
-
-    graph = nx.convert_matrix.from_pandas_edgelist(edge_list, edge_attr=["weight"])
+    g = nx.convert_matrix.from_pandas_edgelist(edge_list, edge_attr=["weight"])
     no_edges = []
-    for u, v, weight in graph.edges.data("weight"):
+    for u, v, weight in g.edges.data("weight"):
         if weight == 0:
             no_edges.append((u, v))
-
-    graph.remove_edges_from(no_edges)
-
-    return graph
+    return g
 
 
 def parse_repositories(paths, start_date=None, end_date=None):
@@ -167,6 +120,90 @@ def parse_comments(issues):
     commenter_df = pd.DataFrame(exploded_df["comment"].to_list())
     commenter_df.reset_index(inplace=True)
     return commenter_df
+
+
+def _get_issues_edge_list(dataframe, author_col_name, discussion_col_name):
+    """
+    This function builds an edge_list representing the graph of the relationships between the authors of an issues
+    dataframe.
+
+    :param dataframe: DataFrame containing the data on which to conduct the activity analysis.
+        It must contain at least an *author*, a *target* and a *source* column.
+    :type dataframe: pandas.DataFrame
+    :param author_col_name: Name of the column containing the authors of the entries.
+    :type author_col_name: str
+    :param discussion_col_name: Name of the column containing the targets of the relationships to be explored
+    :type discussion_col_name: str
+    :return: Object of type network containing a *dataframe* field and a *graph* one.
+    """
+
+    dataframe[discussion_col_name] = dataframe[discussion_col_name].apply(
+        lambda discussion: [comment[author_col_name] for comment in discussion]
+    )
+
+    authors = list(dataframe[author_col_name])
+    commenter_threads = list(dataframe[discussion_col_name])
+
+    edges = []
+
+    for i in range(len(authors)):
+        edges.extend([(authors[i], commenter) for commenter in commenter_threads[i]])
+
+    edge_list = pd.DataFrame(edges, columns=["source", "target"])
+    edge_list = edge_list.groupby(["source", "target"]).size().reset_index(name="weight")
+    
+    return edge_list
+    
+
+def _get_edge_list(dataframe, author_col_name, target_col_name, source_col_name=None):
+    """
+    This function builds an edge_list representing the graph of the relationships between the authors of a repositories
+    dataframe or that of a mailing list.
+
+    :param dataframe: DataFrame containing the data on which to conduct the activity analysis.
+        It must contain at least an *author*, a *target* and a *source* column.
+    :type dataframe: pandas.DataFrame
+    :param author_col_name: Name of the column containing the authors of the entries.
+    :type author_col_name: str
+    :param target_col_name: Name of the column containing the targets of the relationship to be explored
+    :type target_col_name: str
+    :param source_col_name: Name of the column containing the sources of the relationships to be explored.
+    :type source_col_name: str
+    :return: Object of type network containing a *dataframe* field and a *graph* one.
+    """
+
+    def to_set(df, col):
+        if not isinstance(df[col].iloc[0], set):
+            if isinstance(df[col].iloc[0], list):
+                df[col] = df[col].apply(lambda x: set(x))
+            else:
+                # If x isn't an iterable, applying set to it will break it down into one. For example, a str would
+                # a list of chars which is why we turn it into a list with only x in it and then into a set.
+                df[col] = df[col].apply(lambda x: set([x]))
+        return df
+
+    if source_col_name is None:
+        dataframe = to_set(dataframe, target_col_name)
+        groups = dataframe.loc[:, [author_col_name, target_col_name]].groupby(author_col_name)
+        source_col_name = target_col_name
+    else:
+        dataframe = to_set(dataframe, target_col_name)
+        dataframe = to_set(dataframe, source_col_name)
+        groups = dataframe.loc[:, [author_col_name, target_col_name, source_col_name]].groupby(author_col_name)
+    targets = groups.aggregate(lambda x: reduce(set.union, x))
+    edges = list(combinations(targets.index.tolist(), 2))
+    edge_list = pd.DataFrame(edges, columns=["source", "target"])
+    if not edge_list.empty:
+        edge_list["weight"] = edge_list.apply(
+            lambda x: len(
+                targets.loc[x["source"]][source_col_name].intersection(targets.loc[x["target"]][target_col_name])
+            ),
+            axis=1,
+        )
+    else:
+        edge_list = edge_list.reindex(edge_list.columns.tolist() + ["weight"], axis=1)
+        
+    return edge_list
 
 
 # In the case of commenter activity, id_col_name, author_col_name and date_col_name, are the names of the corresponding
@@ -290,6 +327,12 @@ def network(dataframe, author_col_name, target_col_name, source_col_name=None):
     """
 
     graph = _network_from_dataframe(dataframe, author_col_name, target_col_name, source_col_name)
+    no_edges = []
+    for u, v, weight in graph.edges.data("weight"):
+        if weight == 0:
+            no_edges.append((u, v))
+
+    graph.remove_edges_from(no_edges)
     degrees = nx.degree_centrality(graph)
     nodes = pd.DataFrame.from_records([degrees]).transpose()
     nodes.columns = ["centrality"]
