@@ -1,4 +1,4 @@
-from comdaan import parse_repositories, parse_mail, parse_issues
+from comdaan import parse_repositories, parse_mail, parse_issues, parse_comments
 from comdaan import activity, network, response, teamsize, display, centrality
 import os
 
@@ -23,8 +23,10 @@ def test_mailinglit_activity_display():
 
 
 def test_issues_activity_display():
-    data = parse_issues(PATH_TO_RESOURCES + "issues.json")
-    a = activity(data, "id", "author", "created_at", actor=["commenter", "reporter"])
+    issues = parse_issues(PATH_TO_RESOURCES + "issues.json")
+    comm = parse_comments(issues)
+    data = issues.merge(comm, how="outer")
+    a = activity(data, "id", "author", "created_at")
     display(a)
     assert True
 
@@ -33,9 +35,10 @@ def test_activity_display_multiple_dfs():
     repo = parse_repositories(PATH_TO_RESOURCES + "repo")
     mail = parse_mail(PATH_TO_RESOURCES + "mailinglist.mbox")
     issues = parse_issues(PATH_TO_RESOURCES + "issues.json")
+    comm = parse_comments(issues)
     repo_a = activity(repo, "id", "author_name", "date")
     mail_a = activity(mail, "message_id", "sender_name", "date")
-    issues_a = activity(issues, "id", "author", "created_at", actor=["commenter", "reporter"])
+    issues_a = activity(issues.merge(comm, how="outer"), "id", "author", "created_at")
     display([repo_a, mail_a, issues_a])
     assert True
 
@@ -91,15 +94,19 @@ def test_response_display_multiple_dfs():
 
 
 def test_teamsize_on_issues_display():
-    data = parse_issues(PATH_TO_RESOURCES + "issues.json")
-    a = teamsize(data, "id", "author", "created_at", actor=["commenter", "reporter"])
+    issues = parse_issues(PATH_TO_RESOURCES + "issues.json")
+    comm = parse_comments(issues)
+    data = issues.merge(comm, how="outer")
+    a = teamsize(data, "id", "author", "created_at")
     display(a)
     assert True
 
 
 def test_teamsize_on_issues_display_multiple_df():
-    data = parse_issues(PATH_TO_RESOURCES + "issues.json")
-    a = teamsize(data, "id", "author", "created_at", actor=["commenter", "reporter"])
+    issues = parse_issues(PATH_TO_RESOURCES + "issues.json")
+    comm = parse_comments(issues)
+    data = issues.merge(comm, how="outer")
+    a = teamsize(data, "id", "author", "created_at")
     b = teamsize(parse_issues(PATH_TO_RESOURCES + "issues2.json"), "id", "author", "created_at")
     display([a, b])
     assert True
@@ -159,8 +166,10 @@ def test_display_multiple_types_with_multiple_dfs():
     d = network(mail, "sender_name", "references", "message_id")
     issues = parse_issues(PATH_TO_RESOURCES + "issues.json")
     e = network(issues, "author", "discussion")
-    data = parse_issues(PATH_TO_RESOURCES + "issues.json")
-    f = teamsize(data, "id", "author", "created_at", actor=["commenter", "reporter"])
+    issues = parse_issues(PATH_TO_RESOURCES + "issues.json")
+    comm = parse_comments(issues)
+    data = issues.merge(comm, how="outer")
+    f = teamsize(data, "id", "author", "created_at")
     g = teamsize(parse_issues(PATH_TO_RESOURCES + "issues2.json"), "id", "author", "created_at")
     display([a, b, c, d, e, f, g])
     assert True

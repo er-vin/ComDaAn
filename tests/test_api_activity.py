@@ -1,4 +1,4 @@
-from comdaan import parse_issues, parse_mail, parse_repositories
+from comdaan import parse_issues, parse_comments, parse_mail, parse_repositories
 from comdaan import activity, Activity
 from pandas import DataFrame
 import os
@@ -94,37 +94,45 @@ def test_activity_on_issues_reporter_count():
 
 
 def test_activity_on_issues_with_commenters_cols():
-    data = parse_issues(PATH_TO_RESOURCES + "issues.json")
-    a = activity(data, "id", "author", "created_at", actor="commenter")
+    issues = parse_issues(PATH_TO_RESOURCES + "issues.json")
+    data = parse_comments(issues)
+    a = activity(data, "id", "author", "created_at")
     assert a.dataframe.columns.tolist() == ["name", "date", "count", "week_name"]
 
 
 def test_activity_on_issue_comments_row_count():
-    data = parse_issues(PATH_TO_RESOURCES + "issues.json")
-    a = activity(data, "id", "author", "created_at", actor="commenter")
+    issues = parse_issues(PATH_TO_RESOURCES + "issues.json")
+    data = parse_comments(issues)
+    a = activity(data, "id", "author", "created_at")
     assert len(a.dataframe.index) == 182
 
 
 def test_activity_on_issues_commenters_count():
-    data = parse_issues(PATH_TO_RESOURCES + "issues.json")
-    a = activity(data, "id", "author", "created_at", actor="commenter")
+    issues = parse_issues(PATH_TO_RESOURCES + "issues.json")
+    data = parse_comments(issues)
+    a = activity(data, "id", "author", "created_at")
     assert len(a.authors) == 27
 
 
 def test_activity_on_issues_with_commenters_vs_reporters():
-    data = parse_issues(PATH_TO_RESOURCES + "issues.json")
-    comm = activity(data, "id", "author", "created_at", actor="commenter")
-    rep = activity(data, "id", "author", "created_at", actor="reporter")
+    issues = parse_issues(PATH_TO_RESOURCES + "issues.json")
+    comments = parse_comments(issues)
+    comm = activity(comments, "id", "author", "created_at")
+    rep = activity(issues, "id", "author", "created_at")
     assert not comm.dataframe.equals(rep.dataframe)
 
 
 def test_activity_on_issues_with_commenters_and_reporters():
-    data = parse_issues(PATH_TO_RESOURCES + "issues.json")
-    a = activity(data, "id", "author", "created_at", actor=["commenter", "reporter"])
+    issues = parse_issues(PATH_TO_RESOURCES + "issues.json")
+    comments = parse_comments(issues)
+    data = issues.merge(comments, how="outer")
+    a = activity(data, "id", "author", "created_at")
     assert len(a.dataframe.index) == 204  # 204 is the size of the corresponding dataframe.
 
 
 def test_activity_on_issues_all_actors_count():
-    data = parse_issues(PATH_TO_RESOURCES + "issues.json")
-    a = activity(data, "id", "author", "created_at", actor=["commenter", "reporter"])
+    issues = parse_issues(PATH_TO_RESOURCES + "issues.json")
+    comments = parse_comments(issues)
+    data = issues.merge(comments, how="outer")
+    a = activity(data, "id", "author", "created_at")
     assert len(a.authors) == 30

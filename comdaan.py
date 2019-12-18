@@ -153,12 +153,33 @@ def parse_issues(paths, start_date=None, end_date=None):
     return parser.get_issues(start_date, end_date)
 
 
+def parse_comments(issues):
+    """
+    This function parses the comments of an issues DataFrame. It creates a DataFrame that stores all the comments in
+    *issues*.
+
+    :param issues: DataFrame containing the issues from which the comments are to be extracted.
+    :type issues: pandas.DataFrame
+    :return: pandas.DataFrame with the comment fields as columns.
+    """
+
+    exploded_df = issues.explode("discussion").rename(columns={"discussion": "comment"})
+    commenter_df = pd.DataFrame(exploded_df["comment"].to_list())
+    commenter_df.reset_index(inplace=True)
+    return commenter_df
+
+
 # In the case of commenter activity, id_col_name, author_col_name and date_col_name, are the names of the corresponding
 # fields in dateframe["discussion"]. With parse_issues, they are the same as the ones directly in the dataframe.
-def activity(dataframe, id_col_name, author_col_name, date_col_name, actor="reporter"):
+def activity(dataframe, id_col_name, author_col_name, date_col_name):
     """
     This function runs an activity analysis on the dataset provided. It explores the weekly activity of the members of a
     team or community.
+
+    In the case of issues, this analysis only considers bug reporters. To consider the commenters, the issues
+    dataframe's comments can be parsed using the parse_comments function. Said function generates a dataframe with the
+    needed columns and so can be used here. To consider both commenters and reporters, the issues and comments
+    dataframes can be merged, both having the necessary columns.
 
     :param dataframe: DataFrame containing the data on which to conduct the activity analysis.
         It must contain at least an *id*, a *name* and a *date* column.
@@ -169,43 +190,23 @@ def activity(dataframe, id_col_name, author_col_name, date_col_name, actor="repo
     :type author_col_name: str
     :param date_col_name: Name of the column containing the dates of the entries.
     :type date_col_name: str
-    :param actor: Flag parameter to signal which actor to consider in the analysis.
-        It is only relevant for issues and has a default value of "reporter".
-    :type actor: str or list of str
     :return: Object of type Activity containing a *dataframe* field and an *authors* one.
     """
 
     dataframe[date_col_name] = dataframe[date_col_name].apply(lambda x: datetime(year=x.year, month=x.month, day=x.day))
 
-    authors = []
-    activity_data = pd.DataFrame()
-
-    if "reporter" in actor:
-        start_dates = dataframe.groupby(author_col_name)[author_col_name, date_col_name].min()
-        start_dates.index.name = "author_name_index"
-        authors += (
-            start_dates.sort_values([date_col_name, author_col_name], ascending=False).loc[:, author_col_name].tolist()
-        )
-        activity_data = dataframe.loc[:, [author_col_name, date_col_name, id_col_name]]
-
-    if "commenter" in actor:
-        dataframe = dataframe.explode("discussion").rename(columns={"discussion": "comment"})
-        dataframe["comment_author"] = dataframe["comment"].apply(lambda x: x[author_col_name])
-        dataframe["comment_created_at"] = dataframe["comment"].apply(lambda x: x[date_col_name])
-        commenters = dataframe.loc[:, ["comment_author", "comment_created_at"]].rename(
-            columns={"comment_author": author_col_name, "comment_created_at": date_col_name}
-        )
-        commenters[date_col_name] = commenters[date_col_name].apply(
-            lambda x: datetime(year=x.year, month=x.month, day=x.day)
-        )
-        commenters[id_col_name] = commenters.index
-        authors += (
-            commenters.sort_values([date_col_name, author_col_name], ascending=False).loc[:, author_col_name].tolist()
-        )
-        activity_data = pd.concat([activity_data, commenters])
-
+    start_dates = dataframe.groupby(author_col_name)[author_col_name, date_col_name].min()
+    start_dates.index.name = "author_name_index"
+    authors = (
+        start_dates.sort_values([date_col_name, author_col_name], ascending=False).loc[:, author_col_name].tolist()
+    )
     authors = list(set(authors))
-    daily_activity = activity_data.groupby([author_col_name, date_col_name]).count()
+
+    daily_activity = (
+        dataframe.loc[:, [author_col_name, date_col_name, id_col_name]]
+        .groupby([author_col_name, date_col_name])
+        .count()
+    )
     daily_activity.columns = ["count"]
 
     weekly_activity = daily_activity.groupby(author_col_name).resample("W", level=1).sum()
@@ -213,14 +214,20 @@ def activity(dataframe, id_col_name, author_col_name, date_col_name, actor="repo
     weekly_activity = weekly_activity.reset_index(level=[author_col_name, date_col_name])
     weekly_activity[date_col_name] = weekly_activity[date_col_name].apply(lambda x: x - timedelta(days=3))
     weekly_activity["week_name"] = weekly_activity[date_col_name].apply(lambda x: "%s-%s" % x.isocalendar()[:2])
+
     weekly_activity = weekly_activity.rename(columns={author_col_name: "name", date_col_name: "date"})
     return Activity(weekly_activity, authors)
 
 
-def teamsize(dataframe, id_col_name, author_col_name, date_col_name, actor="reporter", frac=None):
+def teamsize(dataframe, id_col_name, author_col_name, date_col_name, frac=None):
     """
     This function runs a teamsize analysis on the dataset provided. It explores the evolution of the size and activity
     of a community or a team over time.
+
+    In the case of issues, this analysis only considers bug reporters. To consider the commenters, the issues
+    dataframe's comments can be parsed using the parse_comments function. Said function generates a dataframe with the
+    needed columns and so can be used here. To consider both commenters and reporters, the issues and comments
+    dataframes can be merged, both having the necessary columns.
 
     :param dataframe: DataFrame containing the data on which to conduct the activity analysis.
         It must contain at least an *id*, a *name* and a *date* column.
@@ -231,46 +238,22 @@ def teamsize(dataframe, id_col_name, author_col_name, date_col_name, actor="repo
     :type author_col_name: str
     :param date_col_name: Name of the column containing the dates of the entries.
     :type date_col_name: str
-    :param actor: Flag parameter to signal which actor to consider in the analysis.
-        It is only relevant for issues and has a default value of "reporter".
-    :type actor: str or list of str
     :param frac: The fraction of data to use for the curve smoothing factor.
     :type frac: float
     :return: Object of type TeamSize containing a *dataframe* field.
     """
 
-    author_team_size = pd.DataFrame()
-    comm_team_size = pd.DataFrame()
+    dataframe[date_col_name] = dataframe[date_col_name].apply(lambda x: x.date())
+    dataframe[date_col_name] = pd.DatetimeIndex(dataframe[date_col_name]).to_period("W").to_timestamp()
+    dataframe[date_col_name] = dataframe[date_col_name].apply(lambda x: x - timedelta(days=3))
 
-    if "reporter" in actor:
-        dataframe[date_col_name] = dataframe[date_col_name].apply(lambda x: x.date())
-        dataframe[date_col_name] = pd.DatetimeIndex(dataframe[date_col_name]).to_period("W").to_timestamp()
-        dataframe[date_col_name] = dataframe[date_col_name].apply(lambda x: x - timedelta(days=3))
+    dataframe_by_date = dataframe.groupby(date_col_name)
 
-        dataframe_by_date = dataframe.groupby(date_col_name)
+    team_size = pd.DataFrame()
 
-        author_team_size["entry_count"] = dataframe_by_date[id_col_name].count()
-        author_team_size["author_count"] = dataframe_by_date[author_col_name].nunique()
+    team_size["entry_count"] = dataframe_by_date[id_col_name].count()
+    team_size["author_count"] = dataframe_by_date[author_col_name].nunique()
 
-    if "commenter" in actor:
-        dataframe = dataframe.explode("discussion").rename(columns={"discussion": "comment"})
-        dataframe["comment_author"] = dataframe["comment"].apply(lambda comment: comment[author_col_name])
-        dataframe["comment_created_at"] = dataframe["comment"].apply(lambda comment: comment[date_col_name])
-
-        comments = dataframe.loc[:, ["comment_author", "comment_created_at"]].rename(
-            columns={"comment_author": author_col_name, "comment_created_at": date_col_name}
-        )
-        comments[date_col_name] = comments[date_col_name].apply(lambda x: x.date())
-        comments[date_col_name] = pd.DatetimeIndex(comments[date_col_name]).to_period("W").to_timestamp()
-        comments[date_col_name] = comments[date_col_name].apply(lambda x: x - timedelta(days=3))
-        comments[id_col_name] = comments.index
-
-        comments_by_date = comments.groupby(date_col_name)
-
-        comm_team_size["entry_count"] = comments_by_date[id_col_name].count()
-        comm_team_size["author_count"] = comments_by_date[author_col_name].nunique()
-
-    team_size = pd.concat([author_team_size, comm_team_size], sort=False)
     team_size = team_size.groupby(date_col_name).sum()
     team_size = team_size.sort_values(by=date_col_name)
     team_size.reset_index(inplace=True)

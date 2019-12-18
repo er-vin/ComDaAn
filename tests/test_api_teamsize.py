@@ -1,4 +1,4 @@
-from comdaan import parse_issues, parse_mail, parse_repositories
+from comdaan import parse_issues, parse_comments, parse_mail, parse_repositories
 from comdaan import teamsize, TeamSize
 import os
 
@@ -79,8 +79,9 @@ def test_teamsize_on_issues_reported_row_count():
 
 
 def test_teamsize_on_issues_with_commenters_cols():
-    data = parse_issues(PATH_TO_RESOURCES + "issues.json")
-    a = teamsize(data, "id", "author", "created_at", actor="commenter")
+    issues = parse_issues(PATH_TO_RESOURCES + "issues.json")
+    data = parse_comments(issues)
+    a = teamsize(data, "id", "author", "created_at")
     assert a.dataframe.columns.tolist() == [
         "date",
         "entry_count",
@@ -91,21 +92,25 @@ def test_teamsize_on_issues_with_commenters_cols():
 
 
 def test_teamsize_on_issue_comments_row_count():
-    data = parse_issues(PATH_TO_RESOURCES + "issues.json")
-    a = teamsize(data, "id", "author", "created_at", actor="commenter")
+    issues = parse_issues(PATH_TO_RESOURCES + "issues.json")
+    data = parse_comments(issues)
+    a = teamsize(data, "id", "author", "created_at")
     assert len(a.dataframe.index) == 71
 
 
 def test_teamsize_on_issues_with_commenters_vs_reporters():
-    data = parse_issues(PATH_TO_RESOURCES + "issues.json")
-    comm = teamsize(data, "id", "author", "created_at", actor="commenter")
-    rep = teamsize(data, "id", "author", "created_at", actor="reporter")
+    issues = parse_issues(PATH_TO_RESOURCES + "issues.json")
+    comments = parse_comments(issues)
+    comm = teamsize(comments, "id", "author", "created_at")
+    rep = teamsize(issues, "id", "author", "created_at")
     assert not comm.dataframe.equals(rep.dataframe)
 
 
 def test_teamsize_on_issues_with_commenters_and_reporters():
-    data = parse_issues(PATH_TO_RESOURCES + "issues.json")
-    a = teamsize(data, "id", "author", "created_at", actor=["commenter", "reporter"])
+    issues = parse_issues(PATH_TO_RESOURCES + "issues.json")
+    comments = parse_comments(issues)
+    data = issues.merge(comments, how="outer")
+    a = teamsize(data, "id", "author", "created_at")
     assert len(a.dataframe.index) == 79
 
 
