@@ -523,7 +523,10 @@ def response(issues, id_col_name, author_col_name, date_col_name, discussion_col
 
 def display(objects, title=None, output="result.html", palette="magma256"):
     """
-    This function displays the results of the analyses.
+    This function displays the results of the analyses. When *objects* consists of multiple objects, they all get
+    displayed in a grid plot except for objects of type *Centrality*, *TeamSize* and *Response*. These three objects can
+    be displayed in the form of plots and thus can be are overlayed. The same can't be said for objects of type
+    *Activity* and *Network*.
 
     :param objects: An object of type Activity, TeamSize, Network, Centrality or Response or a list of such objects.
     :type objects: Activity, TeamSize, Network, Centrality or Response or a list of them.

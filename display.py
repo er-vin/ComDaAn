@@ -182,24 +182,21 @@ def _response_figure(p, issues, response_time, color_bar, color_plot):
 
 def _display(objects, title, palette):
     obj_type = type(objects[0])
-    # Displaying them all as if they're part of the same activity analysis... But is that what we want?
     if obj_type == Activity:
-        df_to_display = pd.DataFrame()
-        authors = []
+        plots = []
         for obj in objects:
-            df_to_display = pd.concat([df_to_display, obj.dataframe])
-            authors += obj.authors
-        p = figure(
-            x_axis_type="datetime",
-            y_range=list(set(authors)),
-            sizing_mode="stretch_both",
-            active_scroll="wheel_zoom",
-            title=title,
-        )
-        p = _activity_figure(p, palette, df_to_display)
-        return p
+            p = figure(
+                x_axis_type="datetime",
+                y_range=obj.authors,
+                sizing_mode="stretch_both",
+                active_scroll="wheel_zoom",
+                title=title,
+            )
+            p = _activity_figure(p, palette, obj.dataframe)
+            plots.append(p)
+        gp = gridplot(plots, ncols=2, sizing_mode="stretch_both", toolbar_location=None)
+        return gp
 
-    # Displaying them all as if they're part of the same network analysis... But is that what we want?
     elif obj_type == Network:
         plots = []
         for obj in objects:
@@ -212,11 +209,9 @@ def _display(objects, title, palette):
             )
             p = _network_figure(p, obj.dataframe, obj.graph)
             plots.append(p)
-        # Do we really want this? Other forms of combining bokeh plots would not make much sense.
-        gp = gridplot(plots, ncols=2, sizing_mode="stretch_both")
-        # show(gp)
+        gp = gridplot(plots, ncols=2, sizing_mode="stretch_both", toolbar_location=None)
         return gp
-    # Displaying each one in a different fig plot... Or should they be on the same one? (idem teamsize)
+
     elif obj_type == Response:
         p = figure(x_axis_type="datetime", sizing_mode="stretch_both", active_scroll="wheel_zoom", title=title)
         p.xaxis.axis_label = "Date"
@@ -234,15 +229,15 @@ def _display(objects, title, palette):
             )
         )
         color_i = 0
-        df_num = 1
+        df_num = 0
         for obj in objects:
             if "name" not in obj.response_time.__dict__:
+                df_num += 1
                 obj.response_time.name = "DataFrame #" + str(df_num)
             p = _response_figure(
                 p, obj.unanswered_issues, obj.response_time, Category10[10][color_i], Category10[10][color_i + 1]
             )
             color_i += 2 if color_i < 8 else 0
-            df_num += 1
         return p
 
     elif obj_type == TeamSize:
@@ -264,9 +259,11 @@ def _display(objects, title, palette):
             )
         )
         color_i = 0
+        df_num = 0
         for obj in objects:
             if "name" not in obj.dataframe.__dict__:
-                obj.dataframe.name = "DataFrame #" + str(color_i + 1)
+                df_num += 1
+                obj.dataframe.name = "DataFrame #" + str(df_num)
             p = _teamsize_figure(p, obj.dataframe, Category10[10][color_i], Category10[10][color_i + 1])
             color_i += 2 if color_i < 8 else 0
         return p
