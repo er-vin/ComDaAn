@@ -17,23 +17,20 @@
 # limitations under the License.
 #
 
-import pandas as pd
-import networkx as nx
-
 from argparse import ArgumentParser
-from issuesparsing import _IssuesParser
-from bokeh.plotting import figure, show
-from bokeh.models.graphs import from_networkx, NodesAndLinkedEdges
-from bokeh.models import MultiLine, Circle, HoverTool, TapTool, BoxSelectTool, LinearColorMapper
-from bokeh.palettes import Spectral4, Magma11
-from bokeh.io import output_file
+import comdaan as cd
 
 if __name__ == "__main__":
-    # Parse the args before all else
-    arg_parser = ArgumentParser(
-        description="A tool for visualizing who's been working with whom on issues",
-        parents=[_IssuesParser.get_argument_parser()],
+    # Fetching arguments from command line
+    arg_parser = ArgumentParser(description="A tool for visualizing, week by week, who contributes code")
+    arg_parser.add_argument(
+        "paths",
+        metavar="path",
+        nargs="+",
+        help="Path of a git repository to process or of a directory containing git repositories",
     )
+    arg_parser.add_argument("-f", "--start", help="Start date")
+    arg_parser.add_argument("-u", "--end", help="End date")
     arg_parser.add_argument(
         "--palette", choices=["blue4", "magma256"], default="magma", help="Choose a palette (default is magma256)"
     )
@@ -45,60 +42,6 @@ if __name__ == "__main__":
     end_date = args.end
     output_filename = args.output or "result.html"
 
-    parser = _IssuesParser()
-    parser.add_issues_paths(args.paths)
-    issues = parser.get_issues(start_date, end_date)
-
-    # Filtering all data except commenter names.
-    issues["discussion"] = issues["discussion"].apply(lambda discussion: [comment["author"] for comment in discussion])
-
-    authors = list(issues["author"])  # or toValues
-    commenter_threads = list(issues["discussion"])
-
-    edges = []
-
-    for i in range(len(authors)):
-        edges.extend([(authors[i], commenter) for commenter in commenter_threads[i]])
-
-    edge_list = pd.DataFrame(edges, columns=["source", "target"])
-    edge_list = edge_list.groupby(["source", "target"]).size().reset_index(name="weight")
-
-    graph = nx.convert_matrix.from_pandas_edgelist(edge_list, edge_attr=["weight"])
-
-    degrees = nx.degree_centrality(graph)
-    nodes = pd.DataFrame.from_records([degrees]).transpose()
-    nodes.columns = ["centrality"]
-    palette = list(reversed(Magma11))
-    color_mapper = LinearColorMapper(palette=palette, low=nodes["centrality"].min(), high=nodes["centrality"].max())
-
-    output_file(output_filename)
-    p = figure(
-        x_range=(-1.1, 1.1),
-        y_range=(-1.1, 1.1),
-        sizing_mode="stretch_both",
-        active_scroll="wheel_zoom",
-        title=args.title,
-    )
-
-    p.add_tools(HoverTool(tooltips=[("Name", "@index"), ("Centrality", "@centrality")]), TapTool(), BoxSelectTool())
-
-    p.xaxis.visible = False
-    p.yaxis.visible = False
-    p.grid.visible = False
-
-    renderer = from_networkx(graph, nx.kamada_kawai_layout)
-
-    renderer.node_renderer.data_source.add(nodes["centrality"], "centrality")
-    renderer.node_renderer.glyph = Circle(size=15, fill_color={"field": "centrality", "transform": color_mapper})
-    renderer.node_renderer.selection_glyph = Circle(size=15, fill_color=Spectral4[2])
-    renderer.node_renderer.hover_glyph = Circle(size=15, fill_color=Spectral4[1])
-
-    renderer.edge_renderer.glyph = MultiLine(line_color="#CCCCCC", line_alpha=0.8, line_width=2)
-    renderer.edge_renderer.selection_glyph = MultiLine(line_color=Spectral4[2], line_width=4)
-    renderer.edge_renderer.hover_glyph = MultiLine(line_color=Spectral4[1], line_width=4)
-
-    renderer.selection_policy = NodesAndLinkedEdges()
-    renderer.inspection_policy = NodesAndLinkedEdges()
-
-    p.renderers.append(renderer)
-    show(p)
+    data = cd.parse_issues(args.paths, start_date, end_date)
+    a = cd.network(data, "author", "discussion")
+    cd.display(a, palette=args.palette, output=output_filename)
