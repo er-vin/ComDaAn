@@ -60,7 +60,7 @@ ISSUE_FIELDS = [
 ]
 
 
-class IssuesParser:
+class _IssuesParser:
     def __init__(self):
         self.__paths = []
         self.__rulesets = {}
@@ -136,6 +136,19 @@ class IssuesParser:
     def __preprocess_entry(self, entry):
         entry["author"] = entry["author"]["name"]
 
+        # Merging all comments of multiple threads in the same big list.
+        def get_thread_comments(discussion):
+            comments = []
+            for thread in discussion:
+                comments += thread
+            return comments
+
+        entry["discussion"] = get_thread_comments(entry["discussion"])
+        for comment in entry["discussion"]:
+            comment["author"] = comment["author"]["name"]
+            comment["created_at"] = datetime.strptime(comment["created_at"], "%Y-%m-%dT%H:%M:%S.%fZ").astimezone(utc)
+            comment["updated_at"] = datetime.strptime(comment["updated_at"], "%Y-%m-%dT%H:%M:%S.%fZ").astimezone(utc)
+
         for date in ["created_at", "updated_at", "closed_at"] if entry["closed_at"] else ["created_at", "updated_at"]:
             entry[date] = datetime.strptime(entry[date], "%Y-%m-%dT%H:%M:%S.%fZ").astimezone(utc)
 
@@ -144,6 +157,12 @@ class IssuesParser:
     def __is_entry_acceptable(self, entry, start_datetime, end_datetime, rulesets):
         for ruleset in rulesets:
             if not ruleset.is_entry_acceptable(entry):
+                return False
+
+            if start_datetime and entry["created_at"].date() < start_datetime.date():
+                return False
+
+            if end_datetime and entry["created_at"].date() > end_datetime.date():
                 return False
 
         return True

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 #
-# Copyright 2019 Christelle Zouein <christellezouein@hotmail.com>
+# Copyright 2018 Kevin Ottens <ervin@ipsquad.net>
 #
 # The authors license this file to You under the Apache License, Version 2.0
 # (the "License"); you may not use this file except in compliance with
@@ -21,21 +21,20 @@ import pandas as pd
 import networkx as nx
 
 from argparse import ArgumentParser
-from issuesparsing import IssuesParser
+from gitparsing import _GitParser
 from bokeh.plotting import figure, show
 from bokeh.models.graphs import from_networkx, NodesAndLinkedEdges
 from bokeh.models import MultiLine, Circle, HoverTool, TapTool, BoxSelectTool, LinearColorMapper
 from bokeh.palettes import Spectral4, Magma11
 from bokeh.io import output_file
+from itertools import combinations
+from functools import reduce
 
 if __name__ == "__main__":
     # Parse the args before all else
     arg_parser = ArgumentParser(
-        description="A tool for visualizing who's been working with whom on issues",
-        parents=[IssuesParser.get_argument_parser()],
-    )
-    arg_parser.add_argument(
-        "--palette", choices=["blue4", "magma256"], default="magma", help="Choose a palette (default is magma256)"
+        description="A tool for showing who has worked with whom within repositories",
+        parents=[_GitParser.get_argument_parser()],
     )
     arg_parser.add_argument("-t", "--title", help="Title")
     arg_parser.add_argument("-o", "--output", help="Output file (default is 'result.html')")
@@ -45,36 +44,31 @@ if __name__ == "__main__":
     end_date = args.end
     output_filename = args.output or "result.html"
 
-    parser = IssuesParser()
-    parser.add_issues_paths(args.paths)
-    issues = parser.get_issues(start_date, end_date)
+    parser = _GitParser()
+    parser.add_repositories(args.paths)
+    log = parser.get_log(start_date, end_date)
+    # log["files"] = log["files"].apply(lambda x: set(x))  # Done in parsing
 
-    # Merging all comments of multiple threads in the same big list.
-    issues["discussion"] = issues["discussion"].apply(
-        lambda discussion: [comment for thread in discussion for comment in thread]
-    )
-    # Filtering all data except commenter names.
-    issues["discussion"] = issues["discussion"].apply(
-        lambda discussion: [comment["author"]["name"] for comment in discussion]
-    )
-    groups = issues.loc[:, ["author", "discussion"]].groupby("author")
+    groups = log.loc[:, ["author_name", "files"]].groupby("author_name")
+    files = groups.aggregate(lambda x: reduce(set.union, x))
 
-    authors = list(issues["author"])  # or toValues
-    commenter_threads = list(issues["discussion"])
-    edges = []
-
-    for i in range(len(authors)):
-        edges.extend([(authors[i], commenter) for commenter in commenter_threads[i]])
-
+    edges = list(combinations(files.index.tolist(), 2))
     edge_list = pd.DataFrame(edges, columns=["source", "target"])
-    edge_list = edge_list.groupby(["source", "target"]).size().reset_index(name="weight")
+    edge_list["weight"] = edge_list.apply(
+        lambda x: len(files.loc[x["source"]]["files"].intersection(files.loc[x["target"]]["files"])), axis=1
+    )
 
     graph = nx.convert_matrix.from_pandas_edgelist(edge_list, edge_attr=["weight"])
+    no_edges = []
+    for u, v, weight in graph.edges.data("weight"):
+        if weight == 0:
+            no_edges.append((u, v))
+
+    graph.remove_edges_from(no_edges)
 
     degrees = nx.degree_centrality(graph)
     nodes = pd.DataFrame.from_records([degrees]).transpose()
     nodes.columns = ["centrality"]
-
     palette = list(reversed(Magma11))
     color_mapper = LinearColorMapper(palette=palette, low=nodes["centrality"].min(), high=nodes["centrality"].max())
 

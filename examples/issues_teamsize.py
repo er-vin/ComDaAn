@@ -20,10 +20,9 @@
 import pandas as pd
 
 from argparse import ArgumentParser
-from datetime import timedelta, datetime
-from pytz import utc
+from datetime import timedelta
 
-from issuesparsing import IssuesParser
+from issuesparsing import _IssuesParser
 from bokeh.plotting import figure, show
 from bokeh.models import HoverTool, LinearAxis, Range1d
 from bokeh.models.annotations import Legend
@@ -37,11 +36,13 @@ if __name__ == "__main__":
     # Parse the args before all else
     arg_parser = ArgumentParser(
         description="A tool for visualizing, month by month the team size and activity",
-        parents=[IssuesParser.get_argument_parser()],
+        parents=[_IssuesParser.get_argument_parser()],
     )
     arg_parser.add_argument(
         "--palette", choices=["blue4", "magma256"], default="magma", help="Choose a palette (default is magma256)"
     )
+    arg_parser.add_argument("-r", "--reporters", help="Display reporter activity.", action="store_true")
+    arg_parser.add_argument("-c", "--commenters", help="Display commenter activity.", action="store_true")
     arg_parser.add_argument("-t", "--title", help="Title")
     arg_parser.add_argument("-o", "--output", help="Output file (default is 'result.html')")
     arg_parser.add_argument("-d", "--frac", help="The fraction of data used while estimating each y value")
@@ -49,49 +50,50 @@ if __name__ == "__main__":
 
     start_date = args.start
     end_date = args.end
+
+    comm = args.commenters
+    rep = args.reporters
+
+    if not rep and not comm:
+        print("Please choose team kind(s) to display.")
+        exit(1)
+
     output_filename = args.output or "result.html"
 
-    parser = IssuesParser()
+    parser = _IssuesParser()
     parser.add_issues_paths(args.paths)
     issues = parser.get_issues(start_date, end_date)
 
-    issues["created_at"] = issues["created_at"].apply(lambda x: x.date())
-    issues["created_at"] = pd.DatetimeIndex(issues["created_at"]).to_period("W").to_timestamp()
-    issues["created_at"] = issues["created_at"].apply(lambda x: x - timedelta(days=3))
-
-    issues_by_date = issues.groupby("created_at")
-
     author_team_size = pd.DataFrame()
-    author_team_size["activity"] = issues_by_date["id"].count()
-    author_team_size["authors_count"] = issues_by_date["author"].nunique()
-
-    # Merging all comments of multiple threads in the same big list.
-    def get_thread_comments(discussion):
-        comments = []
-        for thread in discussion:
-            for comment in thread:
-                comments.append(comment)
-        return comments
-
-    issues["discussion"] = issues["discussion"].apply(get_thread_comments)
-    issues = issues.explode("discussion").rename(columns={"discussion": "comment"})
-    issues["comment_author"] = issues["comment"].apply(lambda comment: comment["author"]["name"])
-    issues["comment_created_at"] = issues["comment"].apply(
-        lambda comment: datetime.strptime(comment["created_at"], "%Y-%m-%dT%H:%M:%S.%fZ").astimezone(utc)
-    )
-    comments = issues.loc[:, ["comment_author", "comment_created_at"]].rename(
-        columns={"comment_author": "author", "comment_created_at": "created_at"}
-    )
-    comments["created_at"] = comments["created_at"].apply(lambda x: x.date())
-    comments["created_at"] = pd.DatetimeIndex(comments["created_at"]).to_period("W").to_timestamp()
-    comments["created_at"] = comments["created_at"].apply(lambda x: x - timedelta(days=3))
-    comments["id"] = comments.index
-
-    comments_by_date = comments.groupby("created_at")
-
     comm_team_size = pd.DataFrame()
-    comm_team_size["activity"] = comments_by_date["id"].count()
-    comm_team_size["author_count"] = comments_by_date["author"].nunique()
+
+    if rep:
+        issues["created_at"] = issues["created_at"].apply(lambda x: x.date())
+        issues["created_at"] = pd.DatetimeIndex(issues["created_at"]).to_period("W").to_timestamp()
+        issues["created_at"] = issues["created_at"].apply(lambda x: x - timedelta(days=3))
+
+        issues_by_date = issues.groupby("created_at")
+
+        author_team_size["activity"] = issues_by_date["id"].count()
+        author_team_size["author_count"] = issues_by_date["author"].nunique()
+
+    if comm:
+        issues = issues.explode("discussion").rename(columns={"discussion": "comment"})
+        issues["comment_author"] = issues["comment"].apply(lambda comment: comment["author"])
+        issues["comment_created_at"] = issues["comment"].apply(lambda comment: comment["created_at"])
+
+        comments = issues.loc[:, ["comment_author", "comment_created_at"]].rename(
+            columns={"comment_author": "author", "comment_created_at": "created_at"}
+        )
+        comments["created_at"] = comments["created_at"].apply(lambda x: x.date())
+        comments["created_at"] = pd.DatetimeIndex(comments["created_at"]).to_period("W").to_timestamp()
+        comments["created_at"] = comments["created_at"].apply(lambda x: x - timedelta(days=3))
+        comments["id"] = comments.index
+
+        comments_by_date = comments.groupby("created_at")
+
+        comm_team_size["activity"] = comments_by_date["id"].count()
+        comm_team_size["author_count"] = comments_by_date["author"].nunique()
 
     team_size = pd.concat([author_team_size, comm_team_size], sort=False)
     team_size = team_size.groupby("created_at").sum()
@@ -112,14 +114,14 @@ if __name__ == "__main__":
     p.xaxis.axis_label = "Date"
     p.yaxis.axis_label = "Activity"
 
-    p.extra_y_ranges = {"team_range": Range1d(start=0, end=team_size["authors_count"].max())}
+    p.extra_y_ranges = {"team_range": Range1d(start=0, end=team_size["author_count"].max())}
     p.add_layout(LinearAxis(y_range_name="team_range", axis_label="Team Size"), "right")
 
     p.add_layout(Legend(), "below")
 
     p.add_tools(
         HoverTool(
-            tooltips=[("Date", "@created_at{%Y-w%V}"), ("Team Size", "@authors_count"), ("Issue Count", "@activity")],
+            tooltips=[("Date", "@created_at{%Y-w%V}"), ("Team Size", "@author_count"), ("Issue Count", "@activity")],
             formatters={"created_at": "datetime"},
             point_policy="snap_to_data",
         )
@@ -135,7 +137,7 @@ if __name__ == "__main__":
     )
     p.circle(
         "created_at",
-        "authors_count",
+        "author_count",
         source=ColumnDataSource(team_size),
         y_range_name="team_range",
         color=Category10[3][1],

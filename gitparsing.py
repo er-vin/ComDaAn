@@ -35,7 +35,7 @@ GIT_LOG_FORMAT = ["%H", "%an", "%ae", "%ad", "%s"]
 GIT_LOG_FORMAT = "%x1e" + "%x1f".join(GIT_LOG_FORMAT) + "%x1f"
 
 
-class GitParser:
+class _GitParser:
     def __init__(self):
         self.__paths = []
         self.__rulesets = []
@@ -177,7 +177,7 @@ class GitParser:
             files = entry["files"].strip("\n")
             files = files.split("\n")
             files = list(map(lambda x: "%s:%s" % (repository, x), files))
-            entry["files"] = files
+            entry["files"] = set(files)
         except KeyError:
             entry["files"] = []
 

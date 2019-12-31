@@ -18,12 +18,9 @@
 #
 
 import pandas as pd
-from itertools import chain
 from argparse import ArgumentParser
 
-from pytz import utc
-
-from issuesparsing import IssuesParser
+from issuesparsing import _IssuesParser
 from datetime import datetime, timedelta
 from bokeh.plotting import figure, show
 from bokeh.models import HoverTool, LinearColorMapper
@@ -35,7 +32,7 @@ if __name__ == "__main__":
     # Parse the args before all else
     arg_parser = ArgumentParser(
         description="A tool for visualizing week by week, who's been most active regarding project issues.",
-        parents=[IssuesParser.get_argument_parser()],
+        parents=[_IssuesParser.get_argument_parser()],
     )
     arg_parser.add_argument("-r", "--reporters", help="Display reporter activity.", action="store_true")
 
@@ -59,7 +56,7 @@ if __name__ == "__main__":
         exit(1)
 
     output_filename = args.output or "result.html"
-    parser = IssuesParser()
+    parser = _IssuesParser()
     parser.add_issues_paths(args.paths)
 
     issues = parser.get_issues(start_date, end_date)
@@ -83,12 +80,10 @@ if __name__ == "__main__":
                 comments += thread
             return comments
 
-        issues["discussion"] = issues["discussion"].apply(get_thread_comments)
         issues = issues.explode("discussion").rename(columns={"discussion": "comment"})
-        issues["comment_author"] = issues["comment"].apply(lambda comment: comment["author"]["name"])
-        issues["comment_created_at"] = issues["comment"].apply(
-            lambda comment: datetime.strptime(comment["created_at"], "%Y-%m-%dT%H:%M:%S.%fZ").astimezone(utc)
-        )
+        issues["comment_author"] = issues["comment"].apply(lambda x: x["author"])
+        issues["comment_created_at"] = issues["comment"].apply(lambda x: x["created_at"])
+
         commenters = issues.loc[:, ["comment_author", "comment_created_at"]].rename(
             columns={"comment_author": "author", "comment_created_at": "created_at"}
         )

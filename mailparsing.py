@@ -22,7 +22,6 @@ import mailbox
 from datetime import datetime
 from pytz import utc
 from email.utils import parseaddr
-from email.header import decode_header
 from email import policy, message_from_binary_file
 
 from rulesetfinding import find_rulesets
@@ -30,7 +29,7 @@ from rulesetfinding import find_rulesets
 MAIL_FIELDS = ["sender_name", "sender_email", "date", "subject", "in_reply_to", "references", "message_id", "body"]
 
 
-class MailParser:
+class _MailParser:
     def __init__(self):
         self.__paths = []
         self.__rulesets = {}
@@ -145,9 +144,9 @@ class MailParser:
 
     def __postprocess_entry(self, entry, rulesets):
         if entry["references"]:
-            entry["references"] = entry["references"].split(" ")
+            entry["references"] = set(entry["references"].split(" "))
         else:
-            entry["references"] = []
+            entry["references"] = set()
 
         entry["date"] = datetime.strptime(entry["date"], "%a, %d %b %Y %H:%M:%S %z").astimezone(utc)
 
