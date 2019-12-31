@@ -26,7 +26,7 @@ from dateutil.relativedelta import relativedelta
 from dateutil.rrule import rrule, MONTHLY, WEEKLY
 from multiprocessing.pool import Pool
 from bokeh.io import output_file
-from bokeh.plotting import show
+from bokeh.plotting import show, save
 
 from gitparsing import _GitParser
 from mailparsing import _MailParser
@@ -521,7 +521,7 @@ def response(issues, id_col_name, author_col_name, date_col_name, discussion_col
     return Response(issues.loc[:, ["date", "unanswered_to_this_date"]], response_time)
 
 
-def display(objects, title=None, output="result.html", palette="magma256"):
+def display(objects, title=None, output="result.html", palette="magma256", show_plots=True):
     """
     This function displays the results of the analyses. When *objects* consists of multiple objects, they all get
     displayed in a grid plot except for objects of type *Centrality*, *TeamSize* and *Response*. These three objects can
@@ -536,6 +536,9 @@ def display(objects, title=None, output="result.html", palette="magma256"):
     :type output: str
     :param palette: Name of the bokeh palette to use.
     :type palette: str
+    :param show_plots: Flag to either save the result in a file and then show it in a browser when set to *True* or save
+    it only and without starting a browser when set to *False*.
+    :type show_plots: bool
     :return: No return value but opens the HTML file with the results.
     """
 
@@ -557,4 +560,7 @@ def display(objects, title=None, output="result.html", palette="magma256"):
         plots.append(p)
 
     gp = gridplot(plots, ncols=2, sizing_mode="stretch_both")
-    show(gp)
+    if show_plots:
+        show(gp)
+    else:
+        save(gp)

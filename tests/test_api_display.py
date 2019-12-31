@@ -11,14 +11,14 @@ def test_repo_activity_display():
         raise Exception("Empty git submodule. Try: git submodule update --init")
     data = parse_repositories(repo)
     a = activity(data, "id", "author_name", "date")
-    display(a)
+    display(a, show_plots=False)
     assert True
 
 
 def test_mailinglit_activity_display():
     data = parse_mail(PATH_TO_RESOURCES + "mailinglist.mbox")
     a = activity(data, "message_id", "sender_name", "date")
-    display(a)
+    display(a, show_plots=False)
     assert True
 
 
@@ -27,7 +27,7 @@ def test_issues_activity_display():
     comm = parse_comments(issues)
     data = issues.merge(comm, how="outer")
     a = activity(data, "id", "author", "created_at")
-    display(a)
+    display(a, show_plots=False)
     assert True
 
 
@@ -39,7 +39,7 @@ def test_activity_display_multiple_dfs():
     repo_a = activity(repo, "id", "author_name", "date")
     mail_a = activity(mail, "message_id", "sender_name", "date")
     issues_a = activity(issues.merge(comm, how="outer"), "id", "author", "created_at")
-    display([repo_a, mail_a, issues_a])
+    display([repo_a, mail_a, issues_a], show_plots=False)
     assert True
 
 
@@ -49,21 +49,21 @@ def test_repo_network_display():
         raise Exception("Empty git submodule. Try: git submodule update --init")
     data = parse_repositories(repo)
     a = network(data, "author_name", "files")
-    display(a)
+    display(a, show_plots=False)
     assert True
 
 
 def test_mailinglit_network_display():
     data = parse_mail(PATH_TO_RESOURCES + "mailinglist.mbox")
     a = network(data, "sender_name", "references", "message_id")
-    display(a)
+    display(a, show_plots=False)
     assert True
 
 
 def test_issues_network_display():
     data = parse_issues(PATH_TO_RESOURCES + "issues.json")
     a = network(data, "author", "discussion")
-    display(a)
+    display(a, show_plots=False)
     assert True
 
 
@@ -74,14 +74,14 @@ def test_network_display_multiple_dfs():
     mail_a = network(mail, "sender_name", "references", "message_id")
     issues = parse_issues(PATH_TO_RESOURCES + "issues.json")
     issues_a = network(issues, "author", "discussion")
-    display([repo_a, mail_a, issues_a])
+    display([repo_a, mail_a, issues_a], show_plots=False)
     assert True
 
 
 def test_response_display():
     data = parse_issues(PATH_TO_RESOURCES + "issues.json")
     a = response(data, "id", "author", "created_at", "discussion")
-    display(a)
+    display(a, show_plots=False)
     assert True
 
 
@@ -89,7 +89,7 @@ def test_response_display_multiple_dfs():
     data = parse_issues(PATH_TO_RESOURCES + "issues.json")
     a = response(data, "id", "author", "created_at", "discussion")
     b = response(parse_issues(PATH_TO_RESOURCES + "issues2.json"), "id", "author", "created_at", "discussion")
-    display([a, b])
+    display([a, b], show_plots=False)
     assert True
 
 
@@ -98,7 +98,7 @@ def test_teamsize_on_issues_display():
     comm = parse_comments(issues)
     data = issues.merge(comm, how="outer")
     a = teamsize(data, "id", "author", "created_at")
-    display(a)
+    display(a, show_plots=False)
     assert True
 
 
@@ -108,7 +108,7 @@ def test_teamsize_on_issues_display_multiple_df():
     data = issues.merge(comm, how="outer")
     a = teamsize(data, "id", "author", "created_at")
     b = teamsize(parse_issues(PATH_TO_RESOURCES + "issues2.json"), "id", "author", "created_at")
-    display([a, b])
+    display([a, b], show_plots=False)
     assert True
 
 
@@ -118,7 +118,7 @@ def test_centrality_display():
         raise Exception("Empty git submodule. Try: git submodule update --init")
     data = parse_repositories(repo)
     a = centrality(data, "id", "author_name", "date", "files", name="Alex Merry")
-    display(a)
+    display(a, show_plots=False)
     assert True
 
 
@@ -126,7 +126,7 @@ def test_centrality_issues():
     b = centrality(
         parse_issues(PATH_TO_RESOURCES + "issues2.json"), "id", "author", "created_at", "discussion", name="asu"
     )
-    display(b)
+    display(b, show_plots=False)
     assert True
 
 
@@ -136,7 +136,7 @@ def test_centrality_display_multiple_dfs():
     b = centrality(
         parse_issues(PATH_TO_RESOURCES + "issues2.json"), "id", "author", "created_at", "discussion", name="asu"
     )
-    display([a, b])
+    display([a, b], show_plots=False)
     assert True
 
 
@@ -147,7 +147,7 @@ def test_display_multiple_types():
     b = response(data, "id", "author", "created_at", "discussion")
     data = parse_repositories(PATH_TO_RESOURCES + "repo")
     c = network(data, "author_name", "files")
-    display([a, b, c])
+    display([a, b, c], show_plots=False)
     assert True
 
 
@@ -171,5 +171,5 @@ def test_display_multiple_types_with_multiple_dfs():
     data = issues.merge(comm, how="outer")
     f = teamsize(data, "id", "author", "created_at")
     g = teamsize(parse_issues(PATH_TO_RESOURCES + "issues2.json"), "id", "author", "created_at")
-    display([a, b, c, d, e, f, g])
+    display([a, b, c, d, e, f, g], show_plots=False)
     assert True
