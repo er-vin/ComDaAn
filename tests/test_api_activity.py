@@ -43,9 +43,9 @@ def test_activity_on_repository_row_count():
     repo = PATH_TO_RESOURCES + "repo"
     if not os.listdir(repo):
         raise Exception("Empty git submodule. Try: git submodule update --init")
-    data = parse_repositories(repo)
+    data = parse_repositories(repo, end_date="2019-08-12")
     a = activity(data, "id", "author_name", "date")
-    assert len(a.dataframe.index) == 100
+    assert len(a.dataframe.index) == 94
 
 
 def test_activity_on_repository_author_count():

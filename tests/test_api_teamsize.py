@@ -32,9 +32,9 @@ def test_teamsize_on_repository_row_count():
     repo = PATH_TO_RESOURCES + "repo"
     if not os.listdir(repo):
         raise Exception("Empty git submodule. Try: git submodule update --init")
-    data = parse_repositories(repo)
+    data = parse_repositories(repo, end_date="2019-08-12")
     a = teamsize(data, "id", "author_name", "date")
-    assert len(a.dataframe.index) == 78
+    assert len(a.dataframe.index) == 73
 
 
 def test_teamsize_on_mailinglists_return_type():
