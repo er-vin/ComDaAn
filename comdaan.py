@@ -237,7 +237,6 @@ def activity(dataframe, id_col_name, author_col_name, date_col_name):
     authors = (
         start_dates.sort_values([date_col_name, author_col_name], ascending=False).loc[:, author_col_name].tolist()
     )
-    authors = list(set(authors))
 
     daily_activity = (
         dataframe.loc[:, [author_col_name, date_col_name, id_col_name]]
