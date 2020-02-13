@@ -179,7 +179,7 @@ class _GitParser:
             files = list(map(lambda x: "%s:%s" % (repository, x), files))
             entry["files"] = set(files)
         except KeyError:
-            entry["files"] = []
+            entry["files"] = set([])
 
         entry["repository"] = repository
         entry["id"] = "%s:%s" % (repository, entry["id"])
