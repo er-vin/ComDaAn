@@ -32,16 +32,15 @@ if __name__ == "__main__":
     arg_parser.add_argument("-f", "--start", help="Start date")
     arg_parser.add_argument("-u", "--end", help="End date")
     arg_parser.add_argument(
-        "--palette", choices=["blue4", "magma256"], default="magma", help="Choose a palette (default is magma256)"
+        "--palette", choices=["blue4", "magma256"], default="magma256", help="Choose a palette (default is magma256)"
     )
     arg_parser.add_argument("-t", "--title", help="Title")
-    arg_parser.add_argument("-o", "--output", help="Output file (default is 'result.html')")
+    arg_parser.add_argument("-o", "--output", default="result.html", help="Output file (default is 'result.html')")
     args = arg_parser.parse_args()
 
     start_date = args.start
     end_date = args.end
-    output_filename = args.output or "result.html"
 
     data = cd.parse_issues(args.paths, start_date, end_date)
     a = cd.network(data, "author", "discussion")
-    cd.display(a, palette=args.palette, output=output_filename)
+    cd.display(a, palette=args.palette, output=args.output)

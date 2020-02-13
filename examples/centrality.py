@@ -41,16 +41,15 @@ if __name__ == "__main__":
         "--palette", choices=["blue4", "magma256"], default="magma256", help="Choose a palette (default is magma256)"
     )
     arg_parser.add_argument("-t", "--title", help="Title")
-    arg_parser.add_argument("-o", "--output", help="Output file (default is 'result.html')")
+    arg_parser.add_argument("-o", "--output", default="result.html", help="Output file (default is 'result.html')")
     args = arg_parser.parse_args()
 
     start_date = args.start
     end_date = args.end
-    output_filename = args.output or "result.html"
 
     data = cd.parse_repositories(args.paths, start_date, end_date)
     c = cd.centrality(data, "id", "author_name", "date", "files", name=args.name)
     if args.name:
-        cd.display(c, palette=args.palette, output=output_filename)
+        cd.display(c, palette=args.palette, output=args.output)
     else:
         print("Found authors: ", c)
