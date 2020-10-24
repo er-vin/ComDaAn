@@ -418,7 +418,7 @@ def centrality(
     nodes = pd.DataFrame.from_records(degrees, index=date_x)
     nodes.index.name = date_col_name
     nodes.fillna(0.0, inplace=True)
-    frac = float(frac) if frac is not None else 10 * len(x) ** (-0.75)
+    frac = float(frac) if frac is not None else 7.5 * len(x) ** (-0.75)
     nodes[name] = lowess(nodes[name], x, is_sorted=True, frac=frac if frac < 1 else 0.8, it=0)[:, 1]
 
     size_df = pd.DataFrame(data={"value": sizes}, index=date_x)
