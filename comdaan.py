@@ -49,6 +49,8 @@ def _network_from_dataframe(dataframe, author_col_name, target_col_name, source_
     for u, v, weight in g.edges.data("weight"):
         if weight == 0:
             no_edges.append((u, v))
+    g.remove_edges_from(no_edges)
+
     return g
 
 
